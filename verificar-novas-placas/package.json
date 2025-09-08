@@ -1,0 +1,20 @@
+{
+  "name": "verificar-novas-placas",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "NODE_ENV=dev node src/index.js",
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@mhoc/axios-digest-auth": "^0.8.0",
+    "axios": "^0.24.0",
+    "dotenv": "^10.0.0",
+    "node-schedule": "^2.1.0",
+    "xml-js": "^1.6.11"
+  }
+}

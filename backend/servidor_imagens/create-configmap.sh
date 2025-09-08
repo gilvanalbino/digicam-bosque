@@ -1,0 +1,1 @@
+kubectl create configmap -n digicam servidor-imagens-config --from-file=nginx.conf

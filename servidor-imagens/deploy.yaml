@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: servidor-imagens
+  name: servidor-imagens
+  namespace: digicam
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: servidor-imagens
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: servidor-imagens
+    spec:
+      containers:
+      - name: servidor-imagens
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: servidor-imagens-config
+          mountPath: /etc/nginx/conf.d
+        - name: digicam-fotos
+          mountPath: /usr/share/nginx/html/images
+      volumes:
+      - name: servidor-imagens-config
+        configMap:
+          name: servidor-imagens-config
+      - name: digicam-fotos
+        hostPath:
+          path: /digicam-fotos
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: servidor-imagens-svc
+spec:
+  selector:
+    name: servidor-imagens
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort

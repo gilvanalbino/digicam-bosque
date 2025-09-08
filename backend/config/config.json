@@ -1,0 +1,30 @@
+{
+  "development_old": {
+    "username": "digicam_user",
+    "password": "digicam123",
+    "database": "digicam_db",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "development": {
+    "username": "digicam_user",
+    "password": "smoasdoewerl230s",
+    "database": "digicam_db",
+    "host": "database-1.cifaooakonhq.us-east-1.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "test": {
+    "username": "root",
+    "password": null,
+    "database": "database_test",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "${DATABASE_USER}",
+    "password": "${DATABASE_PASS}",
+    "database": "${DATABASE_NAME}",
+    "host": "${DATABASE_HOST}",
+    "dialect": "mysql"
+  }
+}

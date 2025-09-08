@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: digicam-backend-svc
+  namespace: digicam
+spec:
+  selector:
+    name: digicam-backend
+  ports:
+    - protocol: TCP
+      port: 4000

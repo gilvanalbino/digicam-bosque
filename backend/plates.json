@@ -1,0 +1,122 @@
+[
+  {
+    "captureTime": "2021-11-07T18:42:27.000Z",
+    "plateNumber": "CKH1367",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T18:41:26.000Z",
+    "plateNumber": "KYJ7044",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T18:40:51.000Z",
+    "plateNumber": "KXU7873",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T18:40:01.000Z",
+    "plateNumber": "LNV8028",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T18:34:51.000Z",
+    "plateNumber": "MSU3083",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T18:20:46.000Z",
+    "plateNumber": "LTJ0519",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T18:02:54.000Z",
+    "plateNumber": "MQ04G53",
+    "direction": "reverse",
+    "country": "GUA"
+  },
+  {
+    "captureTime": "2021-11-07T18:01:46.000Z",
+    "plateNumber": "ORB9750",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:46:52.000Z",
+    "plateNumber": "LKH9481",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:41:49.000Z",
+    "plateNumber": "LME9A24",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:37:50.000Z",
+    "plateNumber": "LLG7241",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:33:42.000Z",
+    "plateNumber": "PXU5C84",
+    "direction": "forward",
+    "country": "TRT"
+  },
+  {
+    "captureTime": "2021-11-07T17:25:40.000Z",
+    "plateNumber": "LHC7899",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:22:28.000Z",
+    "plateNumber": "LTG1491",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:20:36.000Z",
+    "plateNumber": "LQY0E99",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:20:26.000Z",
+    "plateNumber": "OLS5C36",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:19:55.000Z",
+    "plateNumber": "PZA7609",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:16:37.000Z",
+    "plateNumber": "LNU1A39",
+    "direction": "reverse",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:16:17.000Z",
+    "plateNumber": "LMU1A39",
+    "direction": "forward",
+    "country": "BRA"
+  },
+  {
+    "captureTime": "2021-11-07T17:11:23.000Z",
+    "plateNumber": "PZK8D45",
+    "direction": "forward",
+    "country": "TAI"
+  }
+]

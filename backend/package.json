@@ -1,0 +1,47 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "NODE_ENV=development node server.js",
+    "start": "NODE_ENV=production node server.js",
+    "placas": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hapi/hapi": "^20.2.1",
+    "@hapi/inert": "^6.0.4",
+    "@hapi/vision": "^6.1.0",
+    "@mhoc/axios-digest-auth": "^0.8.0",
+    "aws-sdk": "^2.1047.0",
+    "axios": "^0.24.0",
+    "basic-ftp": "^5.0.5",
+    "bcrypt": "^5.0.1",
+    "blipp": "^4.0.2",
+    "dayjs": "^1.10.7",
+    "dotenv": "^10.0.0",
+    "exceljs": "^4.3.0",
+    "hapi-auth-jwt2": "^10.2.0",
+    "hapi-dev-errors": "^4.0.0",
+    "hapi-error": "^2.3.0",
+    "hapi-swagger": "^14.2.4",
+    "http-digest-client": "0.0.3",
+    "jimp": "^0.16.1",
+    "joi": "^17.4.2",
+    "jsonwebtoken": "^8.5.1",
+    "lodash": "^4.17.21",
+    "mysql2": "^2.3.0",
+    "pdfmake": "^0.2.4",
+    "sequelize": "^6.9.0",
+    "sharp": "^0.29.3",
+    "ssh2-sftp-client": "^7.2.1",
+    "xml-js": "^1.6.11"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.14",
+    "sequelize-cli": "^6.3.0"
+  }
+}

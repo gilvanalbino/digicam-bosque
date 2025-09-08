@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: digicam-backend
+  name: digicam-backend
+  namespace: digicam
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: digicam-backend
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: digicam-backend
+    spec:
+      containers:
+        - image: localhost:5001/digicam_backend:1
+          imagePullPolicy: Always
+          name: digicam-backend
+          ports:
+            - containerPort: 4000
+              protocol: TCP
+          volumeMounts:
+            - name: digicam-fotos
+              mountPath: /digicam-fotos
+          env:
+            - name: NODE_ENV
+              value: production
+
+            - name: TZ
+              value: America/Bahia
+
+            - name: JWT_KEY
+              value: MWQ4ZWMwN2Q0ODRiMDE4ODg4MDdhZTli
+
+            - name: DATABASE_USER
+              value: digicam_user
+            - name: DATABASE_PASS
+              value: Digicam@123
+            - name: DATABASE_NAME
+              value: digicam_db
+            - name: DATABASE_HOST
+              value: database-digicam
+            - name: DATABASE_DIALECT
+              value: mysql
+
+            - name: SFTP_HOST
+              value: digicam-bosque
+            - name: SFTP_PORT
+              value: "22"
+            - name: SFTP_USER
+              value: digicamftp
+            - name: SFTP_PASS
+              value: digitt@2008
+      volumes:
+        - name: digicam-fotos
+          hostPath: 
+            path: /digicam-fotos  
+
+      restartPolicy: Always
+      schedulerName: default-scheduler

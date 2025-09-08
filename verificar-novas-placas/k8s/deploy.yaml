@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: digicam-verificar-novas-placas
+  name: digicam-verificar-novas-placas
+  namespace: digicam
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: digicam-verificar-novas-placas
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: digicam-verificar-novas-placas
+    spec:
+      containers:
+        - image: localhost:5001/digicam_verificar_novas_placas:1
+          imagePullPolicy: Always
+          name: digicam-verificar-novas-placas
+          ports:
+            - containerPort: 4000
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: production
+
+            - name: TZ
+              value: America/Bahia
+
+            - name: CRON_SCHEDULE
+              value: "*/5 * * * * *"
+
+            - name: CLIENT_IDS
+              value: "2"
+
+            - name: DIGICAM_BACKEND_URL
+              value: "http://digicam-backend-svc:4000"
+
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      imagePullSecrets:
+      - name: registry-cr-poupatize
+

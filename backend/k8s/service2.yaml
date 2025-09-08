@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: digicam-backend-svc2
+  namespace: digicam
+spec:
+  type: NodePort
+  selector:
+    name: digicam-backend
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000
+      nodePort:  30080 

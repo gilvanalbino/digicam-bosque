@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: digicam-frontend
+  name: digicam-frontend
+  namespace: digicam
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: digicam-frontend
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: digicam-frontend
+    spec:
+      containers:
+        - image: localhost:5001/digicam_frontend:1
+          imagePullPolicy: Always
+          name: listaqui-api
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          env:
+            - name: TZ
+              value: America/Bahia
+      restartPolicy: Always
+      schedulerName: default-scheduler
