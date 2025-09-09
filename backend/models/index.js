@@ -13,10 +13,33 @@ const config = {
   dialect: process.env.DATABASE_DIALECT,
   logging: false, // process.env.NODE_ENV === 'production' ? false : console.log,
   pool: {
-    max: 10,
-    min: 0,
-    idle: 10000,
+    max: 20,           // Máximo de conexões no pool
+    min: 5,            // Mínimo de conexões mantidas
+    idle: 30000,       // 30s timeout para conexões idle
+    acquire: 60000,    // 60s timeout para obter conexão do pool
+    evict: 1000,       // Verifica conexões expiradas a cada 1s
+    handleDisconnects: true  // Reconecta automaticamente em caso de desconexão
   },
+  dialectOptions: {
+    connectTimeout: 60000,     // 60s timeout para conectar ao MySQL
+    acquireTimeout: 60000,     // 60s timeout para adquirir conexão
+    timeout: 60000,            // 60s timeout para queries
+    reconnect: true,           // Reconectar automaticamente
+    idleTimeout: 300000        // 5min timeout para conexões idle no MySQL
+  },
+  retry: {
+    match: [
+      /ETIMEDOUT/,
+      /EHOSTUNREACH/,
+      /ECONNRESET/,
+      /ECONNREFUSED/,
+      /ENOTFOUND/,
+      /ER_CON_COUNT_ERROR/,
+      /PROTOCOL_CONNECTION_LOST/,
+      /ER_CONNECTION_KILLED/
+    ],
+    max: 3  // Máximo de 3 tentativas de reconexão
+  }
 }; // require(__dirname + '/../config/config.json')[env];
 const db = {};
 

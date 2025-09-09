@@ -2,6 +2,7 @@
 
 const Hapi = require('@hapi/hapi');
 const { sequelize } = require('./models');
+const databaseHealth = require('./middleware/database-health');
 
 const LoginRoutes = require('./routes/login.route');
 const UserRoutes = require('./routes/user.route');
@@ -15,6 +16,7 @@ const LogIdentificacaoRoutes = require('./routes/logIdentificacao.route');
 const RelatoriosRoutes = require('./routes/relatorios.route');
 const WhiteListRoutes = require('./routes/whiteList.route');
 const BlackListRoutes = require('./routes/blackList.route');
+const HealthRoutes = require('./routes/health.route');
 
 const HapiSwagger = require('hapi-swagger');
 const Vision = require('@hapi/vision');
@@ -76,6 +78,7 @@ const init = async () => {
     ...mapRoutes(new RelatoriosRoutes(CONTEXT), RelatoriosRoutes.methods()),
     ...mapRoutes(new WhiteListRoutes(CONTEXT), WhiteListRoutes.methods()),
     ...mapRoutes(new BlackListRoutes(CONTEXT), WhiteListRoutes.methods()),
+    ...mapRoutes(new HealthRoutes(CONTEXT), HealthRoutes.methods()),
   ]);
 
   await server.register({
@@ -119,6 +122,42 @@ const init = async () => {
 
   await server.start();
   console.log(`Server running at: ${server.info.uri}`);
+
+  // Graceful shutdown handling
+  const gracefulShutdown = async (signal) => {
+    console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
+    
+    try {
+      // Para de aceitar novas conexões
+      console.log('Stopping server...');
+      await server.stop({ timeout: 10000 });
+      
+      // Fecha conexões do banco de dados
+      console.log('Closing database connections...');
+      await sequelize.close();
+      
+      console.log('Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      console.error('Error during graceful shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  // Escuta sinais de terminação
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  
+  // Trata uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    gracefulShutdown('uncaughtException');
+  });
+  
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    gracefulShutdown('unhandledRejection');
+  });
 
   return server;
 };

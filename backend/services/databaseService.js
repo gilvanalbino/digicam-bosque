@@ -1,106 +1,26 @@
-// get the client
-const mysql = require('mysql2/promise');
-const bluebird = require('bluebird');
+/**
+ * ARQUIVO DEPRECIADO
+ * 
+ * Este arquivo foi substituído por sequelizeDatabaseService.js
+ * 
+ * Problemas identificados neste arquivo:
+ * - Conexão singleton sem reconexão automática
+ * - Sem pool de conexões
+ * - Sem tratamento adequado de timeouts
+ * - Sem retry logic em caso de falhas
+ * - Uso direto do mysql2 em vez do Sequelize
+ * 
+ * As funções foram migradas para usar Sequelize com:
+ * - Pool de conexões configurado
+ * - Timeouts adequados
+ * - Reconexão automática
+ * - Retry logic
+ * - Melhor tratamento de erros
+ * 
+ * @deprecated Use sequelizeDatabaseService.js
+ */
 
-const DATABASE_USER = process.env.DATABASE_USER;
-const DATABASE_PASS = process.env.DATABASE_PASS;
-const DATABASE_NAME = process.env.DATABASE_NAME;
-const DATABASE_HOST = process.env.DATABASE_HOST;
+console.warn('WARNING: databaseService.js is deprecated. Use sequelizeDatabaseService.js instead');
 
-let connection = null;
-
-const createConnectionIfNeed = async () => {
-  if (!connection) {
-    console.log('connectando ao banco de dados ... ');
-    // create the connection to database
-    connection = await mysql.createConnection({
-      host: DATABASE_HOST,
-      user: DATABASE_USER,
-      password: DATABASE_PASS,
-      database: DATABASE_NAME,
-      Promise: bluebird,
-    });
-    console.log('... conectado!');
-  }
-};
-
-const obterLogIdentificacaoPlaca = async (placaId) => {
-  await createConnectionIfNeed();
-  return new Promise(async (resolve, reject) => {
-    try {
-      const [rows, fields] = await connection.query(
-        `SELECT
-          id, placa, identificador_placa
-        FROM
-          LogIdentificacao
-        WHERE
-          identificador_placa = ?`,
-        [placaId]
-      );
-      if (rows.length > 0) {
-        resolve(rows[0]);
-      } else {
-        resolve(null);
-      }
-    } catch (error) {
-      console.log('Error:', error);
-      reject(error);
-    }
-  });
-};
-
-const obterTrafegoEntradaPlaca = async (placaId) => {
-  await createConnectionIfNeed();
-  return new Promise(async (resolve, reject) => {
-    try {
-      const [rows, fields] = await connection.query(
-        `SELECT
-          id, placa, dataEntrada, placa_saida, dataSaida, identificador_placa, identificador_placa_saida
-        FROM
-          Trafegos
-        WHERE
-          identificador_placa = ?`,
-        [placaId]
-      );
-      if (rows.length > 0) {
-        resolve(rows[0]);
-      } else {
-        resolve(null);
-      }
-    } catch (error) {
-      console.log('Error:', error);
-      reject(error);
-    }
-  });
-};
-
-const obterTrafegoSaidaPlaca = async (placaId) => {
-  await createConnectionIfNeed();
-  return new Promise(async (resolve, reject) => {
-    try {
-      const [rows, fields] = await connection.query(
-        `SELECT
-          id, placa, dataEntrada, placa_saida, dataSaida, identificador_placa, identificador_placa_saida
-        FROM
-          Trafegos
-        WHERE
-          identificador_placa_saida = ?`,
-        [placaId]
-      );
-      if (rows.length > 0) {
-        resolve(rows[0]);
-      } else {
-        resolve(null);
-      }
-    } catch (error) {
-      console.log('Error:', error);
-      reject(error);
-    }
-  });
-};
-
-module.exports = {
-  obterLogIdentificacaoPlaca,
-  obterTrafegoEntradaPlaca,
-  obterTrafegoSaidaPlaca,
-};
+// Re-export das funções do novo service para compatibilidade temporária
+module.exports = require('./sequelizeDatabaseService');

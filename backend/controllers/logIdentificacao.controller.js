@@ -10,7 +10,7 @@ const clientService = require('../services/client.service');
 const trafegoController = require('./trafego.controller');
 const whiteListService = require('../services/whiteList.service');
 const blackListService = require('../services/blackList.service');
-const databaseService = require('../services/databaseService');
+const databaseService = require('../services/sequelizeDatabaseService');
 const saidaNaoIdentificadaService = require('../services/saidaNaoIdentificada.service');
 const logidentificacao = require('../models/logidentificacao');
 
