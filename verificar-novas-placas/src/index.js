@@ -86,7 +86,8 @@ const verificarNovasPlacas = async () => {
   for (const camera of cameras) {
     console.log(new Date(), ` - ${camera.nome}`);
     // obtendo as novas placas identificadas
-    const placas = await hikVisionService.obterPlacas(camera, searchDate);
+    const debug = process.env.DEBUG_CURL === 'true';
+    const placas = await hikVisionService.obterPlacas(camera, searchDate, debug);
     // console.log('placas antes filtro: ', placas.map((p) => p.plateNumber).join(', '));
 
     const novasPlacas = placas.filter((p) => searchDate.getTime() - p.captureTime.getTime() < 60 * 1000);

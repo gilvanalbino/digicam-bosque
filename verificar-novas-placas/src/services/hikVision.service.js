@@ -2,7 +2,22 @@ const { default: AxiosDigestAuth } = require('@mhoc/axios-digest-auth');
 var convert = require('xml-js');
 const fs = require('fs');
 
-const obterPlacas = (camera, searchDate) => {
+const generateCurlCommand = (url, data, credentials, method = 'GET') => {
+  const { username, password } = credentials;
+
+  // Formatar o XML de forma legível
+  const formattedData = data.replace(/></g, '>\n<').replace(/^\s+|\s+$/g, '');
+
+  const curlCommand = `curl -X ${method} \\
+  --digest -u "${username}:${password}" \\
+  -H "Content-Type: application/xml" \\
+  -d '${formattedData}' \\
+  "${url}"`;
+
+  return curlCommand;
+};
+
+const obterPlacas = (camera, searchDate, debug = false) => {
   return new Promise(async (resolve, reject) => {
     try {
       const currentDate = new Date();
@@ -49,6 +64,14 @@ const obterPlacas = (camera, searchDate) => {
         data: data,
         method: 'GET',
       };
+
+      // Debug: Imprimir comando curl equivalente
+      if (debug) {
+        console.log('\n=== COMANDO CURL EQUIVALENTE ===');
+        console.log(generateCurlCommand(url, data, credential, 'GET'));
+        console.log('=====================================\n');
+      }
+
       // console.log('options: ', options);
       const response = await digestAuth.request(options);
 

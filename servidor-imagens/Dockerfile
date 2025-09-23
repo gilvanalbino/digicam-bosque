@@ -3,7 +3,6 @@ FROM node:18-bullseye as development
 
 # Install development dependencies
 RUN apt-get update && apt-get install -y \
-  vim-tiny \
   curl \
   && rm -rf /var/lib/apt/lists/*
 
@@ -17,6 +16,11 @@ RUN npm install
 
 # Copy source code
 COPY . .
+
+# Create images directory
+RUN mkdir -p /app/images
+
+EXPOSE 5000
 
 # Development command
 CMD ["npm", "run", "dev"]
@@ -34,5 +38,11 @@ RUN npm ci --only=production && npm cache clean --force
 
 # Copy application code
 COPY ./src ./src
+COPY ./public ./public
+
+# Create images directory
+RUN mkdir -p /app/images
+
+EXPOSE 5000
 
 CMD ["npm", "start"]

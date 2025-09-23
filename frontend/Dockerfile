@@ -1,11 +1,28 @@
-### STAGE 1: Build ###
-#FROM node:14.13-slim as build
+# Development stage
+FROM node:16.15-slim as development
+
+WORKDIR /app
+
+# Copy package files
+COPY ./package.json ./package-lock.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+EXPOSE 3000
+
+# Development command with hot reload
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# Build stage
 FROM node:16.15-slim as build
 
 WORKDIR /app
 
-COPY ./package.json      .
-COPY ./package-lock.json .
+COPY ./package.json ./package-lock.json ./
 
 RUN npm install
 
@@ -19,8 +36,8 @@ COPY .env.production .env
 
 RUN npm run build
 
-### STAGE 2: Production Environment ###
-FROM nginx:alpine
+# Production stage
+FROM nginx:alpine as production
 
 RUN apk add --no-cache tzdata
 ENV TZ America/Bahia
