@@ -4,6 +4,8 @@ import { watch, unref, onUnmounted } from 'vue';
 
 const EVENTS = ['mousedown', 'touchstart', 'pointerdown'];
 
+const noop = () => {};
+
 function unrefElement(elRef) {
   return unref(elRef)?.$el ?? unref(elRef);
 }
@@ -16,11 +18,11 @@ function useEventListener(...args) {
 
   [target, event, listener, options] = args;
 
-  if (!target) return;
+  if (!target) return noop;
 
-  let cleanup = () => {};
+  let cleanup = noop;
 
-  watch(
+  const stopWatch = watch(
     () => unref(target),
     (el) => {
       cleanup();
@@ -35,6 +37,13 @@ function useEventListener(...args) {
     },
     { immediate: true }
   );
+
+  // atenção: sem esta definição local, "stop" resolvia para window.stop(), que aborta
+  // todas as requisições em andamento da página quando o componente é desmontado
+  const stop = () => {
+    stopWatch();
+    cleanup();
+  };
 
   onUnmounted(stop);
 
