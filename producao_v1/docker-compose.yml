@@ -1,0 +1,83 @@
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - /digicam-fotos:/usr/share/nginx/html/images
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - digicam_network
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    image: digicam-backend:latest
+    ports:
+      - "3000:4000"
+    volumes:
+      - /digicam-fotos:/digicam-fotos
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Bahia
+      - JWT_KEY=MWQ4ZWMwN2Q0ODRiMDE4ODg4MDdhZTli
+      - DATABASE_USER=digicam_user
+      - DATABASE_PASS=Digicam@123
+      - DATABASE_NAME=digicam_db
+      - DATABASE_HOST=10.0.0.126
+      - DATABASE_DIALECT=mysql
+      - SFTP_HOST=10.0.0.126
+      - SFTP_PORT=22
+      - SFTP_USER=digicamftp
+      - SFTP_PASS=digitt@2008
+    networks:
+      - digicam_network
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    image: digicam-frontend:latest
+    ports:
+      - "4000:80"
+    environment:
+      - TZ=America/Bahia
+    networks:
+      - digicam_network
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  verificar_placas:
+    image: digicam-verificar-placas:latest
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Bahia
+      - CRON_SCHEDULE=*/5 * * * * *
+      - CLIENT_IDS=2
+      - DIGICAM_BACKEND_URL=http://10.0.0.126
+    networks:
+      - digicam_network
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  digicam_network:
+    driver: bridge
