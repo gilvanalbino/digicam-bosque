@@ -60,12 +60,28 @@ export const listarTrafegos = (token, client_id) => {
   });
 };
 
-export const listarTrafegosComSaida = (token, client_id) => {
+/**
+ * Lista os tráfegos pelo status derivado (travessia, servico, sem_saida, saidas).
+ * Filtros: placa, entradaDe, entradaAte, ordem, page, pageSize.
+ * Retorna { rows, total, page, pageSize }
+ */
+export const listarTrafegosPorStatus = (token, client_id, status, filtros = {}) => {
+  const params = { status };
+  Object.keys(filtros).forEach((chave) => {
+    if (filtros[chave] !== null && filtros[chave] !== undefined && filtros[chave] !== '') {
+      params[chave] = filtros[chave];
+    }
+  });
   return new Promise((resolve, reject) => {
     api
-      .get(`/trafegos/client/${client_id}/registro-com-saida`, { headers: { authorization: token } })
+      .get(`/trafegos/client/${client_id}`, { headers: { authorization: token }, params })
       .then((response) => {
-        resolve(response.data);
+        // erros do backend chegam com status 200 e o corpo do Boom (ver onPreResponse)
+        if (response.data && response.data.statusCode >= 400) {
+          reject(response.data);
+        } else {
+          resolve(response.data);
+        }
       })
       .catch((error) => {
         reject(error);

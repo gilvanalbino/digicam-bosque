@@ -20,7 +20,6 @@ import FormMorador from '../pages/moradores/FormMorador.vue';
 import FormTrafego from '../pages/trafegos/FormTrafego.vue';
 import ListSelecaoIdentAuto from '../pages/trafegos/ListSelecaoIdentAuto.vue';
 import Dashboard from '../pages/trafegos/Dashboard.vue';
-import ListTrafegosComSaida from '../pages/trafegos/ListTrafegosComSaida.vue';
 
 import ListagemTrafegoPorPeriodo from '../pages/relatorios/ListagemTrafegoPorPeriodo.vue';
 
@@ -121,7 +120,7 @@ const router = createRouter({
     },
     {
       path: '/trafegos/saidas',
-      component: ListTrafegosComSaida,
+      redirect: { path: '/', query: { aba: 'historico' } },
     },
     {
       path: '/relatorios/listagemTrafego',

@@ -13,8 +13,8 @@
     </div>
     <hr class="mt-5 mb-5 bg-gray-400"/>
 
-    <!-- Lista de Trafegos -->
-    <ListaTrafego/>
+    <!-- Tráfegos por status: travessia, serviço/visitantes, histórico e conciliação -->
+    <AbasTrafego/>
   </Main>
 </template>
 
@@ -24,12 +24,12 @@ import { useRouter } from 'vue-router';
 
 import Main from '../layout/Main.vue'
 import PlacasIdentificadas from '../../components/PlacasIdentificadas.vue';
-import ListaTrafego from '../../components/ListaTrafego.vue';
+import AbasTrafego from '../../components/AbasTrafego.vue';
 
 import usePortarias from '../../composables/usePortarias'
 
 export default {
-  components: {Main, PlacasIdentificadas, ListaTrafego},
+  components: {Main, PlacasIdentificadas, AbasTrafego},
   setup() {
 
     const portariaSelecionada = computed(() => usePortarias.state.portarias.selecionada);
