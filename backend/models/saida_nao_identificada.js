@@ -18,6 +18,18 @@ module.exports = (sequelize, DataTypes) => {
       placa: DataTypes.STRING,
       data: DataTypes.DATE,
       identificador_placa: DataTypes.STRING,
+
+      // pendente | associada | arquivada
+      status: DataTypes.STRING,
+      client_id: DataTypes.INTEGER,
+      trafego_id: DataTypes.INTEGER,
+      resolvido_em: DataTypes.DATE,
+      user_resolucao: DataTypes.INTEGER,
+      motivo_arquivamento: DataTypes.STRING,
+
+      imagem_carro: DataTypes.STRING,
+      imagem_carro_thumb: DataTypes.STRING,
+      imagem_placa: DataTypes.STRING,
     },
     {
       sequelize,

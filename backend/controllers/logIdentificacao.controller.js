@@ -13,9 +13,29 @@ const blackListService = require('../services/blackList.service');
 const databaseService = require('../services/sequelizeDatabaseService');
 const saidaNaoIdentificadaService = require('../services/saidaNaoIdentificada.service');
 const logidentificacao = require('../models/logidentificacao');
+const { Camera } = require('../models');
 
 const gerarIdentificadorUnico = (date, placa) => {
   return `${date.getTime()}-${placa}`;
+};
+
+/**
+ * Salva em disco as imagens (carro e placa) de uma identificação, retornando os caminhos gravados
+ */
+const salvarImagensLogIdentificacao = async (logIdentificacao, folder, filename) => {
+  const imagens = {};
+  if (logIdentificacao.imagem_carro) {
+    console.log('salvando imagem do carro');
+    await fileService.saveFile(logIdentificacao.imagem_carro, folder, filename, true);
+    imagens.imagem = `${folder}/${filename}.jpg`;
+    imagens.imagem_thumb = `${folder}/${filename}_thumb.jpg`;
+  }
+  if (logIdentificacao.imagem_placa) {
+    console.log('salvando imagem da placa');
+    await fileService.saveFile(logIdentificacao.imagem_placa, folder, filename + '-placa', false);
+    imagens.imagem_placa = `${folder}/${filename}-placa.jpg`;
+  }
+  return imagens;
 };
 
 class LogIdentificacaoController {
@@ -253,16 +273,27 @@ class LogIdentificacaoController {
   async removeLogIdentificacao(loggedUserId, id) {
     const logIdentificacao = await logIdentificacaoService.get(id);
     if (logIdentificacao) {
+      const camera = await Camera.findByPk(logIdentificacao.camera_id);
       const saidaNaoIdentificadaDb = await saidaNaoIdentificadaService.getByIdentificadorPlaca(
         logIdentificacao.identificador_placa
       );
-      if (!saidaNaoIdentificadaDb) {
-        console.log('logIdentificacao:', logIdentificacao);
+      // somente placas descartadas em câmeras de saída vão para a fila de conciliação
+      if (!saidaNaoIdentificadaDb && camera && camera.sentido === 'S') {
+        const now = new Date();
+        const folder = `/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
+        const filename = `${logIdentificacao.placa}-saida-nao-ident-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+        const imagens = await salvarImagensLogIdentificacao(logIdentificacao, folder, filename);
+
         const saidaNaoIdentificada = {
           placa: logIdentificacao.placa,
           identificador_placa: logIdentificacao.identificador_placa,
           data: logIdentificacao.data,
           camera_id: logIdentificacao.camera_id,
+          client_id: camera.client_id,
+          status: 'pendente',
+          imagem_carro: imagens.imagem,
+          imagem_carro_thumb: imagens.imagem_thumb,
+          imagem_placa: imagens.imagem_placa,
         };
         await saidaNaoIdentificadaService.insert(saidaNaoIdentificada);
       }
@@ -280,32 +311,21 @@ class LogIdentificacaoController {
     const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(loggedUserId, logIdentificacao.placa);
     if (trafegoEntrada) {
       const now = new Date();
-      console.log('salvando imagem do carro');
-
       const folder = `/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
-
-      // imagem carro
       const filename = `${trafegoEntrada.placa}-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
-      await fileService.saveFile(logIdentificacao.imagem_carro, folder, filename, true);
-      trafegoEntrada.imagem_saida = `${folder}/${filename}.jpg`;
-      trafegoEntrada.imagem_saida_thumb = `${folder}/${filename}_thumb.jpg`;
-
-      // imagem placa
-      if (logIdentificacao.imagem_placa) {
-        console.log('salvando imagem da placa');
-        await fileService.saveFile(logIdentificacao.imagem_placa, folder, filename + '-placa', false);
-        trafegoEntrada.imagem_saida_placa = `${folder}/${filename}-placa.jpg`;
-      }
-
-      // dados de quem registrou a saída
-      trafegoEntrada.user_reg_saida = loggedUserId;
-      trafegoEntrada.saida_automatica = true;
-      trafegoEntrada.dataSaida = new Date();
-      trafegoEntrada.placa_saida = logIdentificacao.placa;
+      const imagens = await salvarImagensLogIdentificacao(logIdentificacao, folder, filename);
 
       // registra a saída no trafego
       const camera = await cameraService.get(loggedUserId, logIdentificacao.camera_id);
-      trafegoEntrada.portaria_saida_id = camera.portaria_id;
+      trafegoService.aplicarSaidaNoTrafego(trafegoEntrada, {
+        dataSaida: new Date(),
+        placa: logIdentificacao.placa,
+        identificador_placa: logIdentificacao.identificador_placa,
+        portaria_id: camera.portaria_id,
+        user_id: loggedUserId,
+        automatica: true,
+        ...imagens,
+      });
       const ret = await trafegoService.updateTrafegoDB(loggedUserId, trafegoEntrada);
 
       // removendo o logIdentificacao de saída

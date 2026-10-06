@@ -1,6 +1,7 @@
 'use strict';
 
 const { Op } = require('sequelize');
+const dayjs = require('dayjs');
 const { Trafego, User } = require('../models');
 const TrafegoRoutes = require('../routes/trafego.route');
 
@@ -46,28 +47,99 @@ const listarSemSaida = async (loggedUserId, clientId) => {
 };
 
 const listarComSaida = async (loggedUserId, clientId) => {
-  // se é admin, pode listar todos
-  // se é usuário em cliente, só pode listar as trafego do cliente
+  const ret = await listarPorStatus(loggedUserId, clientId, { status: 'saidas' });
+  return ret.rows;
+};
+
+// veículos de green list só aparecem como pendentes de saída nos primeiros 3 minutos
+const filtroWhiteListSemSaida = () => ({
+  [Op.or]: [
+    { in_whitelist: { [Op.not]: true } },
+    {
+      [Op.and]: [{ in_whitelist: true }, { dataEntrada: { [Op.gt]: new Date(Date.now() - 1000 * 60 * 3) } }],
+    },
+  ],
+});
+
+/**
+ * Lista os tráfegos do cliente pelo status derivado de destino + dataSaida:
+ *  - travessia: destino = cruzar, sem saída
+ *  - servico:   destino IN (servico, morador), sem saída
+ *  - sem_saida: qualquer destino, sem saída
+ *  - saidas:    com saída registrada no dia corrente
+ * Filtros opcionais: placa, entradaDe, entradaAte, ordem, page, pageSize.
+ */
+const listarPorStatus = async (loggedUserId, clientId, filtros) => {
   const loggedUser = await User.findByPk(loggedUserId);
   if (!loggedUser) {
     throw Error('Informar usuário logado');
-  } else if (loggedUser.admin || (loggedUser.client_id && loggedUser.client_id === clientId)) {
-    let params = {};
-    if (clientId) {
-      params = {
-        where: {
-          client_id: clientId,
-          dataSaida: {
-            [Op.not]: null,
-          },
-        },
-        limit: 40,
-      };
-    }
-    return await Trafego.findAll(params);
-  } else {
-    return [];
   }
+  if (!(loggedUser.admin || (loggedUser.client_id && loggedUser.client_id === clientId))) {
+    return { rows: [], total: 0 };
+  }
+
+  const { status, placa, entradaDe, entradaAte, ordem, page, pageSize } = filtros;
+  const condicoes = [{ client_id: clientId }];
+
+  if (status === 'saidas') {
+    condicoes.push({ dataSaida: { [Op.gte]: dayjs().startOf('day').toDate() } });
+  } else {
+    condicoes.push({ dataSaida: null });
+    condicoes.push(filtroWhiteListSemSaida());
+    if (status === 'travessia') {
+      condicoes.push({ destino: 'cruzar' });
+    } else if (status === 'servico') {
+      condicoes.push({ destino: { [Op.in]: ['servico', 'morador'] } });
+    }
+  }
+
+  if (placa) {
+    const texto = `%${placa.toUpperCase().replace(/[^A-Z0-9]/g, '')}%`;
+    condicoes.push({ [Op.or]: [{ placa: { [Op.like]: texto } }, { placa_saida: { [Op.like]: texto } }] });
+  }
+  if (entradaDe) {
+    condicoes.push({ dataEntrada: { [Op.gte]: entradaDe } });
+  }
+  if (entradaAte) {
+    condicoes.push({ dataEntrada: { [Op.lte]: entradaAte } });
+  }
+
+  let order = [['dataEntrada', 'ASC']];
+  if (status === 'saidas') {
+    order = ordem === 'saida_asc' ? [['dataSaida', 'ASC']] : [['dataSaida', 'DESC']];
+  }
+
+  const params = { where: { [Op.and]: condicoes }, order };
+  if (page) {
+    params.limit = pageSize || 50;
+    params.offset = (page - 1) * params.limit;
+  }
+
+  const { rows, count } = await Trafego.findAndCountAll(params);
+  return { rows, total: count, page: page || 1, pageSize: params.limit || count };
+};
+
+/**
+ * Grava os dados de saída em um tráfego — usado pela saída automática (câmera)
+ * e pela associação manual de saídas não identificadas.
+ */
+const aplicarSaidaNoTrafego = (trafego, saida) => {
+  trafego.dataSaida = saida.dataSaida;
+  trafego.placa_saida = saida.placa;
+  trafego.identificador_placa_saida = saida.identificador_placa;
+  trafego.portaria_saida_id = saida.portaria_id;
+  trafego.user_reg_saida = saida.user_id;
+  trafego.saida_automatica = saida.automatica;
+  if (saida.imagem) {
+    trafego.imagem_saida = saida.imagem;
+  }
+  if (saida.imagem_thumb) {
+    trafego.imagem_saida_thumb = saida.imagem_thumb;
+  }
+  if (saida.imagem_placa) {
+    trafego.imagem_saida_placa = saida.imagem_placa;
+  }
+  return trafego;
 };
 
 const listPorPeriodo = async (
@@ -377,6 +449,8 @@ const removeBlackList = async (veiculoId) => {
 module.exports = {
   listarSemSaida,
   listarComSaida,
+  listarPorStatus,
+  aplicarSaidaNoTrafego,
   listPorPeriodo,
   get,
   insert,

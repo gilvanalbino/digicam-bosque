@@ -44,14 +44,32 @@ class TrafegoRoutes extends BaseRoute {
       method: 'GET',
       options: {
         handler: async (request, h) => {
+          if (request.query.status) {
+            return trafegoController.listTrafegosByClientIdPorStatus(
+              request.loggedUserId,
+              request.params.id,
+              request.query
+            );
+          }
           return trafegoController.listTrafegosByClientId(request.loggedUserId, request.params.id);
         },
-        description: 'Obtem todos os trafegos sem saída cadastrados para o cliente informado',
-        notes: 'Obtem todos os trafegos sem saída cadastrados para o cliente informado',
+        description: 'Obtem os trafegos do cliente informado',
+        notes:
+          'Sem "status", retorna todos os trafegos sem saída (array). Com "status" (travessia, servico, sem_saida, ' +
+          'saidas), retorna { rows, total, page, pageSize } com os filtros e paginação informados.',
         tags: ['api', 'trafegos'],
         validate: {
           params: Joi.object({
             id: Joi.number().required(),
+          }),
+          query: Joi.object({
+            status: Joi.string().valid('travessia', 'servico', 'sem_saida', 'saidas'),
+            placa: Joi.string().allow('').max(10),
+            entradaDe: Joi.date().iso(),
+            entradaAte: Joi.date().iso(),
+            ordem: Joi.string().valid('saida_desc', 'saida_asc'),
+            page: Joi.number().integer().min(1),
+            pageSize: Joi.number().integer().min(1).max(200),
           }),
           headers: Joi.object({
             authorization: Joi.string().required(),

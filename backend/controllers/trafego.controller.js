@@ -18,6 +18,13 @@ class TrafegoController {
   }
 
   /**
+   * Get trafegos by client_id filtered by derived status (travessia, servico, sem_saida, saidas)
+   */
+  async listTrafegosByClientIdPorStatus(loggedUserId, clientId, filtros) {
+    return await trafegoService.listarPorStatus(loggedUserId, clientId, filtros);
+  }
+
+  /**
    * Get all trafegos by client_id
    */
   async listTrafegosByClientIdRegistrosComSaida(loggedUserId, clientId) {
