@@ -38,16 +38,34 @@ const salvarImagensLogIdentificacao = async (logIdentificacao, folder, filename)
   return imagens;
 };
 
+// distância máxima entre o horário da leitura e o do arquivo para a foto ser considerada da mesma passagem;
+// a foto da própria câmera chega com até 2 s de diferença
+const TOLERANCIA_FOTO_MS = 10 * 1000;
+
+// o nome do arquivo começa com o horário da captura (AAAAMMDDHHMMSS), na hora local da câmera
+const horarioArquivoFoto = (nome) => {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(nome);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+};
+
 /**
- * Escolhe o arquivo de foto entre os localizados no FTP: o único encontrado ou, havendo mais de um,
- * o único que casa com o horário da identificação. Retorna null quando não dá para decidir.
+ * Escolhe, entre os arquivos da placa localizados no FTP, o de horário mais próximo da leitura.
+ * Arquivos fora da tolerância são de outra passagem do veículo (por exemplo, a foto da entrada quando a
+ * leitura é da saída) e não são usados. Retorna null quando nenhum arquivo serve.
  */
-const selecionarArquivoFoto = (files, horario) => {
-  if (files.length > 1) {
-    console.log('filtrando pelo horário');
-    files = files.filter((file) => file.name.indexOf(horario) >= 0);
+const selecionarArquivoFoto = (files, dataLeitura) => {
+  let escolhido = null;
+  let menorDistancia = Infinity;
+  for (const file of files) {
+    const horario = horarioArquivoFoto(file.name);
+    if (!horario) continue;
+    const distancia = Math.abs(horario.getTime() - dataLeitura.getTime());
+    if (distancia <= TOLERANCIA_FOTO_MS && distancia < menorDistancia) {
+      escolhido = file;
+      menorDistancia = distancia;
+    }
   }
-  return files.length == 1 ? files[0] : null;
+  return escolhido;
 };
 
 class LogIdentificacaoController {
@@ -201,16 +219,12 @@ class LogIdentificacaoController {
     const ano = _.padStart(date.getFullYear().toString(), 4, '0');
     const mes = _.padStart(parseInt(date.getMonth().toString()) + 1, 2, '0');
     const dia = _.padStart(date.getDate().toString(), 2, '0');
-    const hora = _.padStart(date.getHours().toString(), 2, '0');
-    const minutos = _.padStart(date.getMinutes().toString(), 2, '0');
     const folder = `fotos/${ano}_${mes}_${dia}-${ano}_${mes}_${dia}`;
     console.log('folder: ', folder);
     console.log('placa: ', logIdentificacao.placa);
     console.log('data: ', logIdentificacao.data);
 
     const placa = logIdentificacao.placa;
-
-    const horario = `${ano}${mes}${dia}${hora}${minutos}`;
 
     // obter imagem da placa da camera
     // a foto da placa é opcional: se não for localizada, segue sem ela
@@ -224,7 +238,7 @@ class LogIdentificacaoController {
         const files = await ftpService.listarArquivos(folder, `*${placa}_PLATE.*`);
         console.log('Qtde arquivos para a placa: ', files.length);
 
-        const arquivoFoto = selecionarArquivoFoto(files, horario);
+        const arquivoFoto = selecionarArquivoFoto(files, date);
         console.log('Nome arquivo foto: ', arquivoFoto && arquivoFoto.name);
         if (arquivoFoto) {
           imagemPlaca = await ftpService.lerArquivo(folder, arquivoFoto.name);
@@ -249,7 +263,7 @@ class LogIdentificacaoController {
       const files = await ftpService.listarArquivos(folder, padraoBusca);
       console.log('Qtde arquivos: ', files.length);
 
-      const arquivoFoto = selecionarArquivoFoto(files, horario);
+      const arquivoFoto = selecionarArquivoFoto(files, date);
       console.log('Nome arquivo foto: ', arquivoFoto && arquivoFoto.name);
       if (arquivoFoto) {
         imagemCarro = await ftpService.lerArquivo(folder, arquivoFoto.name);
