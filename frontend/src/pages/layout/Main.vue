@@ -212,7 +212,8 @@ import {
   SelectorIcon,
   DocumentReportIcon,
   SwitchVerticalIcon,
-  BanIcon
+  BanIcon,
+  ClockIcon
 } from '@heroicons/vue/outline'
 
 
@@ -273,6 +274,7 @@ export default {
     let navigation = [
       { name: 'Tráfego', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/')} },
       // { name: 'Tráfego/Saídas', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/trafegos/saidas')} },
+      { name: 'Linha do Tempo', visible: true, icon: ClockIcon, action: ()=>{router.replace('/linha-do-tempo')} },
       { name: 'Green List', visible: true, icon: SwitchVerticalIcon, action: ()=>{router.replace('/greenList')} },
       { name: 'Red List', visible: true, icon: BanIcon, action: ()=>{router.replace('/redList')} },
       { name: 'Cadastro de Clientes', visible: user.admin, icon: UsersIcon, action: ()=>{router.replace('/clientes')} },

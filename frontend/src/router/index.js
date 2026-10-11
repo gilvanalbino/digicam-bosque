@@ -20,6 +20,7 @@ import FormMorador from '../pages/moradores/FormMorador.vue';
 import FormTrafego from '../pages/trafegos/FormTrafego.vue';
 import ListSelecaoIdentAuto from '../pages/trafegos/ListSelecaoIdentAuto.vue';
 import Dashboard from '../pages/trafegos/Dashboard.vue';
+import LinhaDoTempo from '../pages/trafegos/LinhaDoTempo.vue';
 
 import ListagemTrafegoPorPeriodo from '../pages/relatorios/ListagemTrafegoPorPeriodo.vue';
 
@@ -101,6 +102,10 @@ const router = createRouter({
     {
       path: '/',
       component: Dashboard,
+    },
+    {
+      path: '/linha-do-tempo',
+      component: LinhaDoTempo,
     },
     {
       path: '/trafegos/novo',
