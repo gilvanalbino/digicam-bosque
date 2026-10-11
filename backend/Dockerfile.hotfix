@@ -1,0 +1,6 @@
+# Hotfix sobre a imagem que está em produção: troca apenas os arquivos corrigidos,
+# mantendo dependências e demais arquivos idênticos aos que já rodam.
+FROM digicam-backend:latest
+
+COPY ./controllers/logIdentificacao.controller.js ./controllers/logIdentificacao.controller.js
+COPY ./services/ftp.service.js ./services/ftp.service.js

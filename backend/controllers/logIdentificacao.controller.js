@@ -38,6 +38,18 @@ const salvarImagensLogIdentificacao = async (logIdentificacao, folder, filename)
   return imagens;
 };
 
+/**
+ * Escolhe o arquivo de foto entre os localizados no FTP: o único encontrado ou, havendo mais de um,
+ * o único que casa com o horário da identificação. Retorna null quando não dá para decidir.
+ */
+const selecionarArquivoFoto = (files, horario) => {
+  if (files.length > 1) {
+    console.log('filtrando pelo horário');
+    files = files.filter((file) => file.name.indexOf(horario) >= 0);
+  }
+  return files.length == 1 ? files[0] : null;
+};
+
 class LogIdentificacaoController {
   /**
    * Get all LogIdentificacao
@@ -133,7 +145,11 @@ class LogIdentificacaoController {
     );
     console.log('==========================================================');
     if (camera.sentido === 'E') {
-      downloadPromise.then(async () => {
+      downloadPromise.then(async (retDownload) => {
+        if (retDownload.status !== 'OK') {
+          console.log('Entrada automática não realizada:', retDownload.message);
+          return;
+        }
         console.log('ENTRADA AUTOMÁTICA!!!!!');
         // faz a entrada automática do veículo
         const newTrafego = {
@@ -157,6 +173,11 @@ class LogIdentificacaoController {
         await trafegoController.insertTrafego(loggedUserId, newTrafego);
       }).catch((e)=>{
 	 console.log("Erro obtendo foto", e);
+      });
+    } else {
+      // sem tratamento, a rejeição desta promise derruba o processo
+      downloadPromise.catch((e) => {
+        console.log('Erro obtendo foto', e);
       });
     }
 
@@ -189,68 +210,58 @@ class LogIdentificacaoController {
 
     const placa = logIdentificacao.placa;
 
+    const horario = `${ano}${mes}${dia}${hora}${minutos}`;
+
     // obter imagem da placa da camera
+    // a foto da placa é opcional: se não for localizada, segue sem ela
     console.log('\n==== obtendo imagem placa ======');
     let imagemPlaca = null;
-    if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
-      imagemPlaca = await hikvisionService.obterFotoPlaca(camera.url, logIdentificacao.picname);
-    } else if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
-      // obter imagem da placa no ftp
-      let files = await ftpService.listarArquivos(folder, `*${placa}_PLATE.*`);
-      console.log('Qtde arquivos para a placa: ', files.length);
+    try {
+      if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
+        imagemPlaca = await hikvisionService.obterFotoPlaca(camera.url, logIdentificacao.picname);
+      } else if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
+        // obter imagem da placa no ftp
+        const files = await ftpService.listarArquivos(folder, `*${placa}_PLATE.*`);
+        console.log('Qtde arquivos para a placa: ', files.length);
 
-      let nomeArquivoFoto = '';
-      if (files.length == 1) {
-        nomeArquivoFoto = files[0];
-      } else if (files.length > 1) {
-        console.log('filtrando pelo horário');
-        files = files.filter((file) => {
-          return file.name.indexOf(`${ano}${mes}${dia}${hora}${minutos}`) >= 0;
-        });
-        if (files.length == 1) {
-          nomeArquivoFoto = files[0];
+        const arquivoFoto = selecionarArquivoFoto(files, horario);
+        console.log('Nome arquivo foto: ', arquivoFoto && arquivoFoto.name);
+        if (arquivoFoto) {
+          imagemPlaca = await ftpService.lerArquivo(folder, arquivoFoto.name);
         }
       }
-      console.log('Nome arquivo foto: ', nomeArquivoFoto);
-
-      imagemPlaca = await ftpService.lerArquivo(folder, nomeArquivoFoto.name);
+    } catch (e) {
+      console.log('Erro obtendo imagem da placa', e);
     }
 
     console.log('\n==== obtendo imagem carro ======');
-    // obter imagem do carro no ftp
-
     // obtendo a imagem do carro do FTP
     // localizando primeiro pela placa identificada
     // caso ache mais de uma, filtra pela data
-    let padraoBusca = '';
-    if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
-      padraoBusca = `*${placa}.*`;
-    } else if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
-      padraoBusca = `*${placa}_BACKGROUND.*`;
-    }
-    let files = await ftpService.listarArquivos(folder, padraoBusca);
-    console.log('Qtde arquivos: ', files.length);
-
-    let nomeArquivoFoto = '';
-    if (files.length == 1) {
-      nomeArquivoFoto = files[0];
-    } else if (files.length > 1) {
-      console.log('filtrando pelo horário');
-      files = files.filter((file) => {
-        return file.name.indexOf(`${ano}${mes}${dia}${hora}${minutos}`) >= 0;
-      });
-      if (files.length == 1) {
-        nomeArquivoFoto = files[0];
+    let imagemCarro = null;
+    try {
+      let padraoBusca = '';
+      if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
+        padraoBusca = `*${placa}.*`;
+      } else if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
+        padraoBusca = `*${placa}_BACKGROUND.*`;
       }
-    } else if (files.length === 0) {
-      return { status: 'ERROR', message: `Não encontrada imagem do carro de placa ${logIdentificacao.placa}` };
+      const files = await ftpService.listarArquivos(folder, padraoBusca);
+      console.log('Qtde arquivos: ', files.length);
+
+      const arquivoFoto = selecionarArquivoFoto(files, horario);
+      console.log('Nome arquivo foto: ', arquivoFoto && arquivoFoto.name);
+      if (arquivoFoto) {
+        imagemCarro = await ftpService.lerArquivo(folder, arquivoFoto.name);
+      }
+    } catch (e) {
+      console.log('Erro obtendo imagem do carro', e);
     }
-    console.log('Nome arquivo foto: ', nomeArquivoFoto);
 
-    const imagemCarro = await ftpService.lerArquivo(folder, nomeArquivoFoto.name);
-
-    console.log(`\n==== salvando no banco de dados ====== logIdentificacao ID: ${id}`);
-    await logIdentificacaoService.updateImages(loggedUserId, logIdentificacao.id, imagemPlaca, imagemCarro);
+    if (imagemCarro) {
+      console.log(`\n==== salvando no banco de dados ====== logIdentificacao ID: ${id}`);
+      await logIdentificacaoService.updateImages(loggedUserId, logIdentificacao.id, imagemPlaca, imagemCarro);
+    }
 
     // tenta registrar as saídas
     // if (
@@ -261,9 +272,15 @@ class LogIdentificacaoController {
     console.log('CAMERA SENTIDO: ', camera.sentido);
     if (camera.sentido === 'S') {
       console.log('REGISTRANSO SAÍDA');
-      this.tentarRegistrarSaidaAutomatica(loggedUserId, id);
+      // a saída é registrada mesmo sem foto, para o veículo não ficar sem saída
+      this.tentarRegistrarSaidaAutomatica(loggedUserId, id).catch((e) => {
+        console.log('Erro registrando saída automática', e);
+      });
     }
 
+    if (!imagemCarro) {
+      return { status: 'ERROR', message: `Não encontrada imagem do carro de placa ${logIdentificacao.placa}` };
+    }
     return { status: 'OK' };
   }
 
@@ -329,7 +346,9 @@ class LogIdentificacaoController {
       const ret = await trafegoService.updateTrafegoDB(loggedUserId, trafegoEntrada);
 
       // removendo o logIdentificacao de saída
-      logIdentificacaoService.remove(loggedUserId, id);
+      logIdentificacaoService.remove(loggedUserId, id).catch((e) => {
+        console.log('Erro removendo logIdentificacao de saída', e);
+      });
       console.log('Encontrou entrada - registrou saida - ', logIdentificacao.placa);
       return { status: 'OK', trafego: ret };
     } else {
