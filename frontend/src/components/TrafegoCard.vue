@@ -90,19 +90,7 @@ export default {
 
 <style>
   .alarm {
-    -webkit-animation: ALERT-ANIMATION 1s infinite; /* Safari 4+ */
-    -moz-animation:    ALERT-ANIMATION 1s infinite; /* Fx 5+ */
-    -o-animation:      ALERT-ANIMATION 1s infinite; /* Opera 12+ */
-    animation:         ALERT-ANIMATION 1s infinite; /* IE 10+, Fx 29+ */
-  }
-
-  @-webkit-keyframes ALERT-ANIMATION {
-    0%, 49% {
-        background-color: white;
-    }
-    50%, 100% {
-        background-color: #ffadad;
-    }
+    background-color: #ffadad;
   }
 
   .white-list {
