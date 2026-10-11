@@ -74,43 +74,7 @@
 
               <div class="ml-4 mr-4 mt-2">
 
-                <!-- Portarias -->
-                <Listbox as="div" v-if="portariaSelecionada">
-                  <ListboxLabel class="block text-sm font-medium text-white">
-                    Portarias
-                  </ListboxLabel>
-                  <div class="mt-1 relative">
-                    <ListboxButton class="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                      <div class="flex items-center">
-                        <span class="flex-shrink-0 inline-block h-2 w-2 rounded-full" />
-                        <span class="ml-3 block truncate">{{ portariaSelecionada.nome }}</span>
-                      </div>
-                      <span class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                        <SelectorIcon class="h-5 w-5 text-gray-400" aria-hidden="true" />
-                      </span>
-                    </ListboxButton>
-
-                    <transition leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-                      <ListboxOptions class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                        <ListboxOption as="template" v-for="portaria in portarias" :key="portaria" :value="portaria" v-slot="{ active, selected }" >
-                          <li :class="[active ? 'text-white bg-indigo-600' : 'text-gray-900', 'cursor-default select-none relative py-2 pl-3 pr-9']" @click="selecionarPortaria(portaria)" >
-                            <div class="flex items-center">
-                              <span class="'flex-shrink-0 inline-block h-2 w-2 rounded-full']" aria-hidden="true" />
-                              <span :class="[selected ? 'font-semibold' : 'font-normal', 'ml-3 block truncate']">
-                                {{ portaria.nome }}
-                              </span>
-                            </div>
-
-                            <span v-if="selected" :class="[active ? 'text-white' : 'text-indigo-600', 'absolute inset-y-0 right-0 flex items-center pr-4']">
-                              <CheckIcon class="h-5 w-5" aria-hidden="true" />
-                            </span>
-                          </li>
-                        </ListboxOption>
-                      </ListboxOptions>
-                    </transition>
-                  </div>
-                </Listbox>
-                <div v-else>Não existe portarias cadastradas</div>
+                <div v-if="!portariaSelecionada">Não existe portarias cadastradas</div>
               </div>
 
               <hr class="mt-5"/>
@@ -188,43 +152,7 @@
 
           <div class="ml-4 mr-4 mt-2">
 
-            <!-- Portarias -->
-            <Listbox as="div" v-if="portariaSelecionada">
-              <ListboxLabel class="block text-sm font-medium text-white">
-                Portarias
-              </ListboxLabel>
-              <div class="mt-1 relative">
-                <ListboxButton class="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  <div class="flex items-center">
-                    <span class="flex-shrink-0 inline-block h-2 w-2 rounded-full" />
-                    <span class="ml-3 block truncate">{{ portariaSelecionada.nome }}</span>
-                  </div>
-                  <span class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                    <SelectorIcon class="h-5 w-5 text-gray-400" aria-hidden="true" />
-                  </span>
-                </ListboxButton>
-
-                <transition leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-                  <ListboxOptions class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                    <ListboxOption as="template" v-for="portaria in portarias" :key="portaria" :value="portaria" v-slot="{ active, selected }" >
-                      <li :class="[active ? 'text-white bg-indigo-600' : 'text-gray-900', 'cursor-default select-none relative py-2 pl-3 pr-9']" @click="selecionarPortaria(portaria)" >
-                        <div class="flex items-center">
-                          <span class="'flex-shrink-0 inline-block h-2 w-2 rounded-full']" aria-hidden="true" />
-                          <span :class="[selected ? 'font-semibold' : 'font-normal', 'ml-3 block truncate']">
-                            {{ portaria.nome }}
-                          </span>
-                        </div>
-
-                        <span v-if="selected" :class="[active ? 'text-white' : 'text-indigo-600', 'absolute inset-y-0 right-0 flex items-center pr-4']">
-                          <CheckIcon class="h-5 w-5" aria-hidden="true" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
-            <div class="text-red-300 mt-2" v-else>Não existe portarias cadastradas</div>
+            <div class="text-red-300 mt-2" v-if="!portariaSelecionada">Não existe portarias cadastradas</div>
           </div>
 
           <!-- Navigation Menu -->
@@ -332,17 +260,8 @@ export default {
       router.replace('/')
     }
 
-    const portarias = computed(() => usePortarias.state.portarias.lista);
+    // sem seletor no menu: vale a primeira portaria do cliente (definida ao carregar as portarias)
     let portariaSelecionada = computed(() => usePortarias.state.portarias.selecionada);
-
-    const selecionarPortaria = async (portaria) => {
-      await usePortarias.actions.selecionarPortaria(portaria.id)
-      console.log("carregando trafego - evento selecionar portaria")
-      await useTrafegos.actions.carregarTrafegos(useClientes.state.clientes.selecionado.id)
-      console.log(useTrafegos.state.trafegos)
-      await useCameras.actions.carregarCameras(useClientes.state.clientes.selecionado.id)
-      await useLogIdentificacao.actions.carregarIdentificacoes(portariaSelecionada.value.id)
-    }
 
     const logout = async () => {
       await useLogin.actions.logout();
@@ -376,9 +295,7 @@ export default {
       clientes,
       clienteSelecionado,
       selecionarCliente,
-      portarias,
       portariaSelecionada,
-      selecionarPortaria,
       user
     }
   },
