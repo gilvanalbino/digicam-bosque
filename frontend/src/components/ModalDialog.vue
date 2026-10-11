@@ -36,7 +36,7 @@
 
 <script>
 
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 
 import useClickOutside from '../composables/useClickOutside';
 
@@ -63,6 +63,15 @@ export default {
         closeModal();
       }
     });
+
+    // fecha com a tecla ESC, como no clique fora do diálogo
+    const fecharComEsc = (event) => {
+      if (event.key === 'Escape' && showModal.value === true) {
+        closeModal();
+      }
+    };
+    onMounted(() => window.addEventListener('keydown', fecharComEsc));
+    onUnmounted(() => window.removeEventListener('keydown', fecharComEsc));
 
     watch(
       () => props.show,
