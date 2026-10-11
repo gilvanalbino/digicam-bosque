@@ -317,10 +317,6 @@ const remove = async (loggedUserId, removedTrafegoId) => {
   }
 };
 
-function isNumeric(val) {
-  return /^-?\d+$/.test(val);
-}
-
 const obterRegistroEntradaSemSaida = async (loggedUserId, placa) => {
   console.log('------------------------------');
   console.log(' obterRegistroEntradaSemSaida ');
@@ -334,7 +330,7 @@ const obterRegistroEntradaSemSaida = async (loggedUserId, placa) => {
     loggedUser.admin ||
     loggedUser.client_id === trafego.client_id // cliente não pode cadastrar trafego em outro cliente
   ) {
-    let params = {
+    const params = {
       logging: console.log, // log SQL statement to console
       where: {
         placa,
@@ -342,72 +338,10 @@ const obterRegistroEntradaSemSaida = async (loggedUserId, placa) => {
       },
       order: [['id', 'DESC']],
     };
+    // somente a placa exata: leituras com erro de OCR não são casadas por aproximação e ficam como
+    // saída sem entrada identificada, para o operador associar na tela
     trafegoEntrada = await Trafego.findOne(params);
     console.log(placa, ' - Obtendo Registro Entrada - placa completa: ', trafegoEntrada);
-
-    let ultimosDigitos = placa.substring(3);
-    if (!trafegoEntrada) {
-      // tentar pesquisar pelos 4 ultimos dígitos
-      params = {
-        logging: console.log, // log SQL statement to console
-        where: {
-          placa: { [Op.like]: `%${ultimosDigitos}` },
-          imagem_saida: null,
-        },
-        order: [['id', 'DESC']],
-      };
-      trafegoEntrada = await Trafego.findOne(params);
-      console.log(placa, ' - Obtendo Registro Entrada - somente número da placa: ', trafegoEntrada);
-    }
-
-    // verifica se o 5 dígito é O, I ou S, e troca por 0, 1 e 5 respectivamente
-    if (!trafegoEntrada) {
-      if (!isNumeric(placa[4])) {
-        if (placa[4] == 'O') {
-          // igual a letra "O" (ó maiusculo)
-          ultimosDigitos = `${ultimosDigitos[0]}0${ultimosDigitos.substring(2)}`;
-        } else if (placa[4] == 'I') {
-          // igual a letra "I"
-          ultimosDigitos = `${ultimosDigitos[0]}1${ultimosDigitos.substring(2)}`;
-        } else if (placa[4] == 'S') {
-          // igual a letra "S"
-          ultimosDigitos = `${ultimosDigitos[0]}5${ultimosDigitos.substring(2)}`;
-        }
-      }
-      // tentar pesquisar pelos 4 ultimos dígitos
-      params = {
-        logging: console.log, // log SQL statement to console
-        where: {
-          placa: { [Op.like]: `%${ultimosDigitos}` },
-          imagem_saida: null,
-        },
-        order: [['id', 'DESC']],
-      };
-      trafegoEntrada = await Trafego.findOne(params);
-      console.log(placa, ' - Obtendo Registro Entrada - somente número da placa, com substituições: ', trafegoEntrada);
-    }
-
-    // considerando os 3 primeiros digitos e os ultimos 2 digitos da placa
-    if (!trafegoEntrada) {
-      const placaInicio = placa.substring(0, 3);
-      const placaFim = placa.substring(placa.length - 2);
-      // tentar pesquisar pelos 4 ultimos dígitos
-      params = {
-        logging: console.log, // log SQL statement to console
-        where: {
-          placa: { [Op.like]: `${placaInicio}%${placaFim}` },
-          imagem_saida: null,
-        },
-        order: [['id', 'DESC']],
-      };
-      trafegoEntrada = await Trafego.findOne(params);
-      console.log(
-        placa,
-        ' - Obtendo Registro Entrada - somente inicio (3 digitos) e fim (2 digidos) ',
-        trafegoEntrada,
-        params
-      );
-    }
   }
   return trafegoEntrada;
 };
