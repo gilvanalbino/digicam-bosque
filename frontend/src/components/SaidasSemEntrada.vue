@@ -1,6 +1,6 @@
 <template>
   <!-- Confirmação de associação -->
-  <ModalDialog :show="showModalAssociar">
+  <ModalDialog :show="showModalAssociar" larga>
     <h3 class="text-lg font-bold text-gray-900">Confirmar associação</h3>
     <p class="mt-1 text-sm text-gray-500">A saída será registrada na entrada abaixo, como no casamento automático de placas.</p>
     <div v-if="par.entrada && par.saida" class="mt-4 grid grid-cols-2 gap-4">
@@ -9,6 +9,8 @@
         <img v-if="par.entrada.imagem && !imagemIndisponivel.entrada" class="mt-1 rounded-lg" :src="`/images${par.entrada.imagem}`" alt=""
             @error="imagemIndisponivel.entrada = true" />
         <div v-else class="mt-1 h-24 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">Sem imagem</div>
+        <img v-if="par.entrada.imagem_placa && !imagemIndisponivel.placaEntrada" class="mt-2 h-20 rounded-lg" :src="`/images${par.entrada.imagem_placa}`" alt="Placa lida na entrada"
+            @error="imagemIndisponivel.placaEntrada = true" />
         <p class="mt-1 text-lg font-bold text-gray-900">{{ par.entrada.placa }}</p>
         <p class="text-sm text-gray-600">{{ formatarData(par.entrada.dataEntrada) }}</p>
       </div>
@@ -17,6 +19,8 @@
         <img v-if="par.saida.imagem_carro && !imagemIndisponivel.saida" class="mt-1 rounded-lg" :src="`/images${par.saida.imagem_carro}`" alt=""
             @error="imagemIndisponivel.saida = true" />
         <div v-else class="mt-1 h-24 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">Sem imagem</div>
+        <img v-if="par.saida.imagem_placa && !imagemIndisponivel.placaSaida" class="mt-2 h-20 rounded-lg" :src="`/images${par.saida.imagem_placa}`" alt="Placa lida na saída"
+            @error="imagemIndisponivel.placaSaida = true" />
         <p class="mt-1 text-lg font-bold text-gray-900">{{ par.saida.placa }}</p>
         <p class="text-sm text-gray-600">{{ formatarData(par.saida.data) }}</p>
       </div>
@@ -255,7 +259,7 @@ export default {
 
     const par = ref({ entrada: null, saida: null });
     // imagem que não carregou (arquivo ausente) dá lugar ao aviso "Sem imagem"
-    const imagemIndisponivel = ref({ entrada: false, saida: false });
+    const imagemIndisponivel = ref({ entrada: false, saida: false, placaEntrada: false, placaSaida: false });
     const showModalAssociar = ref(false);
 
     // pedido vindo de um card de entrada (saída solta sobre ele ou botão "Associar saída")
@@ -264,7 +268,7 @@ export default {
       (pedido) => {
         if (pedido) {
           par.value = { entrada: pedido.entrada, saida: pedido.saida };
-          imagemIndisponivel.value = { entrada: false, saida: false };
+          imagemIndisponivel.value = { entrada: false, saida: false, placaEntrada: false, placaSaida: false };
           abrirModal(showModalAssociar);
         }
       }
