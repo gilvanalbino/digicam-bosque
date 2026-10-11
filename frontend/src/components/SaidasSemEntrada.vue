@@ -109,8 +109,13 @@
             Green list{{ saida.whitelist_nome ? `: ${saida.whitelist_nome}` : '' }}
           </p>
           <p v-if="entradasParecidas[saida.id]" class="text-xs font-medium text-blue-800 truncate">
-            Parecida com: {{ entradasParecidas[saida.id].join(', ') }}
+            Parecida com: {{ entradasParecidas[saida.id].map((entrada) => entrada.placa).join(', ') }}
           </p>
+          <button v-if="entradasParecidas[saida.id]" type="button" @click.stop="associarComParecida(saida)"
+              :title="`Associar com a entrada ${entradasParecidas[saida.id][0].placa}`"
+              class="mt-1 mr-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Associar
+          </button>
           <button type="button" @click.stop="abrirArquivamento(saida)"
               class="mt-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
             Arquivar
@@ -152,15 +157,28 @@ export default {
     const entradasParecidas = computed(() => {
       const mapa = {};
       for (const saida of saidas.value) {
-        const placas = useTrafegos.state.trafegos.lista
+        const entradas = useTrafegos.state.trafegos.lista
           .filter((entrada) => podeAssociar(entrada, saida) && diferencas(entrada.placa, saida.placa) <= 2)
-          .map((entrada) => entrada.placa);
-        if (placas.length > 0) {
-          mapa[saida.id] = placas;
+          // a mais parecida primeiro; no empate, a entrada mais recente
+          .sort(
+            (a, b) =>
+              diferencas(a.placa, saida.placa) - diferencas(b.placa, saida.placa) ||
+              new Date(b.dataEntrada) - new Date(a.dataEntrada)
+          );
+        if (entradas.length > 0) {
+          mapa[saida.id] = entradas;
         }
       }
       return mapa;
     });
+
+    // botão "Associar" do card: mesmo efeito de arrastar a saída até a entrada correspondente (a mais parecida)
+    const associarComParecida = (saida) => {
+      const entradas = entradasParecidas.value[saida.id];
+      if (entradas) {
+        useSaidasNaoIdentificadas.actions.pedirAssociacao(entradas[0], saida);
+      }
+    };
 
     onMounted(() => {
       useSaidasNaoIdentificadas.actions.ativar().catch((error) => console.log('Erro carregando saídas não identificadas', error));
@@ -315,6 +333,7 @@ export default {
       saidas,
       total,
       entradasParecidas,
+      associarComParecida,
       saidaSelecionada,
       arrastando,
       selecionar,
