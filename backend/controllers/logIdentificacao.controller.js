@@ -294,8 +294,11 @@ class LogIdentificacaoController {
       const saidaNaoIdentificadaDb = await saidaNaoIdentificadaService.getByIdentificadorPlaca(
         logIdentificacao.identificador_placa
       );
+      // a saída pode já ter sido registrada em uma entrada na chegada da placa (baixa sem imagem);
+      // nesse caso ela não é uma saída sem entrada e fica fora da fila
+      const saidaJaRegistrada = await databaseService.obterTrafegoSaidaPlaca(logIdentificacao.identificador_placa);
       // somente placas descartadas em câmeras de saída vão para a fila de conciliação
-      if (!saidaNaoIdentificadaDb && camera && camera.sentido === 'S') {
+      if (!saidaNaoIdentificadaDb && !saidaJaRegistrada && camera && camera.sentido === 'S') {
         const now = new Date();
         const folder = `/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
         const filename = `${logIdentificacao.placa}-saida-nao-ident-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;

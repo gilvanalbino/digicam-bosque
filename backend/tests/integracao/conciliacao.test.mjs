@@ -139,6 +139,15 @@ if (BACKEND_CONTAINER) {
   ok(existe === 'sim', 'imagens da saída gravadas em disco', caminho);
 }
 
+// identificação cuja saída já foi registrada em uma entrada não é "saída sem entrada"
+sql(`INSERT INTO LogIdentificacao (id,camera_id,placa,sentido,data,imagem_carro,imagem_placa,identificador_placa,createdAt,updatedAt) VALUES
+ (102,2,'OUT9999','forward',UTC_TIMESTAMP(),NULL,NULL,'li-102',NOW(),NOW())`);
+sql("UPDATE Trafegos SET identificador_placa_saida='li-102' WHERE id=5");
+await op('DELETE', '/logIdentificacao/102');
+const jaRegistrada = sql("SELECT COUNT(*) FROM Saidas_nao_identificadas WHERE identificador_placa='li-102'");
+ok(jaRegistrada === '0', 'descarte de identificação com saída já registrada não entra na fila', jaRegistrada);
+ok(sql('SELECT COUNT(*) FROM LogIdentificacao WHERE id=102') === '0', 'e a identificação é removida mesmo assim');
+
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
 r = await op('GET', '/trafegos/client/1?status=servico');
