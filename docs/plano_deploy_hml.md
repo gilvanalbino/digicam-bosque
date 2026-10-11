@@ -343,9 +343,10 @@ Conferir: contagem de `Trafegos` e `Saidas_nao_identificadas` igual à de produ�
 Depois da carga, trocar no banco do HML as senhas dos usuários que não devem ter o mesmo acesso nos dois
 ambientes, se isso for relevante para os testadores.
 
-**Variante sem nenhuma leitura de produção:** pular o dump e deixar a Fase 4 criar o esquema do zero (todas as
-38 migrações em banco vazio). O backend cria os usuários administradores padrão na primeira subida; clientes,
-portarias e câmeras precisam ser cadastrados pela tela. Perde-se o ensaio da migração sobre dados reais.
+**Variante sem nenhuma leitura de produção:** hoje não funciona como está. A cadeia de migrações não roda do
+zero em um MySQL 8 vazio: a migração `20220518172952-create_black_list` reutiliza o nome de chave estrangeira
+`whiteList_client_id_fk` e falha (verificado em 2026-10-11). Para um banco sem dados de produção, carregar só o
+esquema (`mysqldump --no-data`) de um banco já migrado, ou corrigir essa migração antes.
 
 **Opcional — fotos dos registros copiados.** Para ver as fotos dos últimos dias no HML, copiar (não mover, não
 montar) as pastas recentes:
