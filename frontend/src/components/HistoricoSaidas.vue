@@ -17,7 +17,7 @@
           class="mt-1 block w-40 uppercase rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500" />
     </div>
     <h3 class="text-sm leading-4 italic font-medium text-gray-500 pb-2">
-      Saídas registradas hoje (total: {{ historico.total || 0 }})
+      Saídas registradas hoje ({{ dataDeHoje() }}): total: {{ historico.total || 0 }}
     </h3>
   </div>
 
@@ -35,16 +35,14 @@
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Foto entrada</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Foto saída</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placa</th>
-          <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
             <button type="button" class="inline-flex items-center gap-1 uppercase hover:text-gray-700" @click="alternarOrdem">
-              Saída <span aria-hidden="true">{{ historico.ordem === 'saida_desc' ? '▼' : '▲' }}</span>
-              <span class="sr-only">{{ historico.ordem === 'saida_desc' ? 'mais recentes primeiro' : 'mais antigas primeiro' }}</span>
+              Entrada / Saída <span aria-hidden="true">{{ historico.ordem === 'saida_desc' ? '▼' : '▲' }}</span>
+              <span class="sr-only">{{ historico.ordem === 'saida_desc' ? 'saídas mais recentes primeiro' : 'saídas mais antigas primeiro' }}</span>
             </button>
           </th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permanência</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-          <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Portaria saída</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registro</th>
         </tr>
       </thead>
@@ -65,14 +63,20 @@
             </div>
             <div v-if="trafego.nome" class="text-xs text-gray-400">{{ trafego.nome }}</div>
           </td>
-          <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">{{ formatarData(trafego.dataEntrada) }}</td>
-          <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">{{ formatarData(trafego.dataSaida) }}</td>
+          <td class="px-4 py-2 whitespace-nowrap text-sm">
+            <div class="text-green-700">
+              {{ formatarHora(trafego.dataEntrada) }}
+              <span v-if="diaDaEntrada(trafego)" class="ml-1 rounded bg-amber-100 px-1 text-xs font-medium text-amber-800">{{ diaDaEntrada(trafego) }}</span>
+              <span class="ml-1 text-xs">{{ nomePortaria(trafego.portaria_entrada_id) }}</span>
+            </div>
+            <div class="text-red-700">
+              {{ formatarHora(trafego.dataSaida) }}
+              <span class="ml-1 text-xs">{{ nomePortaria(trafego.portaria_saida_id) }}</span>
+            </div>
+          </td>
           <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{{ calcularPermanencia(trafego.dataEntrada, trafego.dataSaida) }}</td>
           <td class="px-4 py-2 whitespace-nowrap text-sm">
             <span :class="tipo(trafego).classe">{{ tipo(trafego).texto }}</span>
-          </td>
-          <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">
-            {{ mapPortaria[trafego.portaria_saida_id] ? mapPortaria[trafego.portaria_saida_id].nome : '' }}
           </td>
           <td class="px-4 py-2 whitespace-nowrap text-xs text-gray-500">
             {{ trafego.saida_automatica ? 'Automático' : 'Manual' }}
@@ -93,7 +97,7 @@ import usePortarias from '../composables/usePortarias';
 import useTrafegos from '../composables/useTrafegos';
 import useMoradores from '../composables/useMoradores';
 
-import { formatarData, calcularPermanencia } from '../utils/dateUtil';
+import { formatarHora, calcularPermanencia } from '../utils/dateUtil';
 
 import ModalDialog from './ModalDialog.vue';
 import Paginacao from './Paginacao.vue';
@@ -112,6 +116,20 @@ export default {
         useTrafegos.actions.filtrarHistorico({ placa: valor });
       }, 400)
     );
+
+    // a data do histórico fica no título; as linhas mostram só os horários
+    const dataDeHoje = () => new Date().toLocaleDateString('pt-BR');
+
+    // sinaliza a entrada feita em dia anterior ao da saída: "ontem" ou a data curta (dd/mm)
+    const diaDaEntrada = (trafego) => {
+      const inicioDoDia = (data) => new Date(new Date(data).setHours(0, 0, 0, 0)).getTime();
+      const dias = Math.round((inicioDoDia(trafego.dataSaida) - inicioDoDia(trafego.dataEntrada)) / 86400000);
+      if (dias <= 0) return '';
+      if (dias === 1) return 'ontem';
+      return new Date(trafego.dataEntrada).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    };
+
+    const nomePortaria = (id) => (mapPortaria.value[id] ? mapPortaria.value[id].nome : '');
 
     const alternarOrdem = () => {
       useTrafegos.actions.ordenarHistorico(historico.value.ordem === 'saida_desc' ? 'saida_asc' : 'saida_desc');
@@ -150,9 +168,12 @@ export default {
       mapPortaria,
       placa,
       alternarOrdem,
+      dataDeHoje,
+      diaDaEntrada,
+      nomePortaria,
+      formatarHora,
       paginar,
       tipo,
-      formatarData,
       calcularPermanencia,
       trafegoSelecionado,
       showModal,
