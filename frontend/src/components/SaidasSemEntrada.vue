@@ -53,6 +53,15 @@
     </div>
   </ModalDialog>
 
+  <!-- Foto da saída -->
+  <ModalDialog :show="showModalFoto">
+    <p class="text-xs font-bold uppercase text-red-700">Saída</p>
+    <p class="text-lg font-bold text-gray-900">{{ saidaFoto.placa }}</p>
+    <p class="text-sm text-gray-600">{{ formatarData(saidaFoto.data) }}</p>
+    <img v-if="saidaFoto.imagem_carro" class="mt-3 rounded-lg" :src="`/images${saidaFoto.imagem_carro}`" alt="" />
+    <img v-if="saidaFoto.imagem_placa" class="mt-3 rounded-lg" :src="`/images${saidaFoto.imagem_placa}`" alt="" />
+  </ModalDialog>
+
   <section aria-labelledby="titulo-saidas-sem-entrada" class="lg:sticky lg:top-4">
     <h3 id="titulo-saidas-sem-entrada" class="text-sm font-medium text-gray-900">
       Saídas sem Entrada Identificada
@@ -83,7 +92,8 @@
                    arrastando && arrastando.id === saida.id ? 'opacity-50' : '',
                    saidaAnteriorAEntrada(saida) ? 'opacity-40' : '']">
         <div class="flex-shrink-0">
-          <img v-if="saida.imagem_carro_thumb" class="h-14 w-14 rounded-lg" :src="`/images${saida.imagem_carro_thumb}`" alt="" draggable="false" />
+          <img v-if="saida.imagem_carro_thumb" class="h-14 w-14 rounded-lg cursor-zoom-in" :src="`/images${saida.imagem_carro_thumb}`"
+              alt="Ver foto da saída" title="Ver foto" draggable="false" @click.stop="abrirFoto(saida)" />
           <div v-else class="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
         </div>
         <div class="flex-1 min-w-0">
@@ -231,6 +241,13 @@ export default {
       }
     };
 
+    const saidaFoto = ref({});
+    const showModalFoto = ref(false);
+    const abrirFoto = (saida) => {
+      saidaFoto.value = saida;
+      abrirModal(showModalFoto);
+    };
+
     const saidaArquivar = ref({});
     const motivo = ref('');
     const showModalArquivar = ref(false);
@@ -274,6 +291,9 @@ export default {
       imagemIndisponivel,
       showModalAssociar,
       confirmarAssociacao,
+      saidaFoto,
+      showModalFoto,
+      abrirFoto,
       saidaArquivar,
       motivo,
       showModalArquivar,
