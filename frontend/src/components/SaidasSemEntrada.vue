@@ -41,7 +41,8 @@
       A saída <b>{{ saidaArquivar.placa }}</b> ({{ formatarData(saidaArquivar.data) }}) sai da fila de pendências e não gera registro de tráfego nos relatórios.
     </p>
     <label for="motivo-arquivamento" class="mt-4 block text-xs font-medium text-gray-500">Motivo (opcional)</label>
-    <input id="motivo-arquivamento" type="text" v-model="motivo" maxlength="255"
+    <input id="motivo-arquivamento" ref="campoMotivo" type="text" v-model="motivo" maxlength="255"
+        @keydown.enter.prevent="confirmarArquivamento"
         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500" />
     <div class="mt-6 flex justify-end gap-2">
       <button type="button" @click="showModalArquivar = false" class="px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">
@@ -86,8 +87,9 @@
           @drop.prevent="soltarEntrada(saida)"
           :title="saidaAnteriorAEntrada(saida) ? 'Saída anterior à entrada: não pode ser associada' : null"
           @click="selecionar(saida)"
-          class="cursor-grab relative rounded-lg border border-gray-300 bg-white px-2 py-2 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-          :class="[(saidaSelecionada && saidaSelecionada.id === saida.id) || alvoId === saida.id ? 'ring-4 ring-indigo-500 border-indigo-500'
+          class="cursor-grab relative rounded-lg border px-2 py-2 shadow-sm flex items-center space-x-3 hover:border-gray-400"
+          :class="[entradasParecidas[saida.id] ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-300',
+                   (saidaSelecionada && saidaSelecionada.id === saida.id) || alvoId === saida.id ? 'ring-4 ring-indigo-500 border-indigo-500'
                      : placaParecida(saida) ? 'ring-2 ring-amber-400 border-amber-400' : '',
                    arrastando && arrastando.id === saida.id ? 'opacity-50' : '',
                    saidaAnteriorAEntrada(saida) ? 'opacity-40' : '']">
@@ -102,6 +104,9 @@
             Saída: {{ saida.Camera && mapPortaria[saida.Camera.portaria_id] ? mapPortaria[saida.Camera.portaria_id].nome : '' }}
           </p>
           <p class="text-xs text-red-700 truncate">{{ formatarData(saida.data) }}</p>
+          <p v-if="entradasParecidas[saida.id]" class="text-xs font-medium text-blue-800 truncate">
+            Parecida com: {{ entradasParecidas[saida.id].join(', ') }}
+          </p>
           <button type="button" @click.stop="abrirArquivamento(saida)"
               class="mt-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
             Arquivar
@@ -120,6 +125,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { notify } from 'notiwind';
 
 import usePortarias from '../composables/usePortarias';
+import useTrafegos from '../composables/useTrafegos';
 import useSaidasNaoIdentificadas, { podeAssociar } from '../composables/useSaidasNaoIdentificadas';
 
 import { formatarData } from '../utils/dateUtil';
@@ -136,6 +142,21 @@ export default {
     const total = computed(() => useSaidasNaoIdentificadas.state.saidas.total);
     const saidaSelecionada = computed(() => useSaidasNaoIdentificadas.state.interacao.selecionada);
     const arrastando = computed(() => useSaidasNaoIdentificadas.state.interacao.arrastando);
+
+    // saídas com placa próxima da de algum veículo em travessia (que entrou antes dela): o card fica azul
+    // e lista as placas parecidas, para ajudar o operador na associação
+    const entradasParecidas = computed(() => {
+      const mapa = {};
+      for (const saida of saidas.value) {
+        const placas = useTrafegos.state.trafegos.lista
+          .filter((entrada) => podeAssociar(entrada, saida) && diferencas(entrada.placa, saida.placa) <= 2)
+          .map((entrada) => entrada.placa);
+        if (placas.length > 0) {
+          mapa[saida.id] = placas;
+        }
+      }
+      return mapa;
+    });
 
     onMounted(() => {
       useSaidasNaoIdentificadas.actions.ativar().catch((error) => console.log('Erro carregando saídas não identificadas', error));
@@ -251,13 +272,28 @@ export default {
     const saidaArquivar = ref({});
     const motivo = ref('');
     const showModalArquivar = ref(false);
+    const campoMotivo = ref(null);
     const abrirArquivamento = (saida) => {
       saidaArquivar.value = saida;
       motivo.value = '';
       abrirModal(showModalArquivar);
+      focarCampoMotivo();
+    };
+
+    // o campo só existe depois que a janela termina de abrir: tenta por até 1 s
+    const focarCampoMotivo = (tentativas = 10) => {
+      setTimeout(() => {
+        if (campoMotivo.value) {
+          campoMotivo.value.focus();
+        } else if (tentativas > 1) {
+          focarCampoMotivo(tentativas - 1);
+        }
+      }, 100);
     };
 
     const confirmarArquivamento = async () => {
+      // evita arquivar duas vezes com Enter repetido
+      if (processando.value) return;
       processando.value = true;
       try {
         await useSaidasNaoIdentificadas.actions.arquivar(saidaArquivar.value.id, motivo.value);
@@ -274,6 +310,7 @@ export default {
       mapPortaria,
       saidas,
       total,
+      entradasParecidas,
       saidaSelecionada,
       arrastando,
       selecionar,
@@ -295,6 +332,7 @@ export default {
       showModalFoto,
       abrirFoto,
       saidaArquivar,
+      campoMotivo,
       motivo,
       showModalArquivar,
       abrirArquivamento,
