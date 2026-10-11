@@ -68,6 +68,22 @@ const selecionarArquivoFoto = (files, dataLeitura) => {
   return escolhido;
 };
 
+// Movimento do veículo em relação ao condomínio (E = entrando, S = saindo) a partir da direção informada pela
+// câmera e do posicionamento dela no cadastro: (F) direcionada para fora, (T) direcionada para dentro.
+const MOVIMENTO_POR_POSICIONAMENTO = {
+  F: { forward: 'S', reverse: 'E' },
+  T: { forward: 'E', reverse: 'S' },
+};
+
+/**
+ * Indica se a leitura foi feita com o veículo no sentido contrário ao propósito da câmera (por exemplo, um
+ * veículo entrando lido pela câmera de saída). Direção "unknown" e câmera sem posicionamento não são filtradas.
+ */
+const leituraNoSentidoContrario = (camera, direcao) => {
+  const movimento = (MOVIMENTO_POR_POSICIONAMENTO[camera.posicionamento] || {})[direcao];
+  return !!movimento && movimento !== camera.sentido;
+};
+
 class LogIdentificacaoController {
   /**
    * Get all LogIdentificacao
@@ -97,6 +113,14 @@ class LogIdentificacaoController {
     const placaId = gerarIdentificadorUnico(newLogIdentificacao.data, newLogIdentificacao.placa);
 
     const camera = await cameraService.get(loggedUserId, newLogIdentificacao.camera_id);
+
+    // câmera de saída só registra saídas e câmera de entrada só registra entradas
+    if (leituraNoSentidoContrario(camera, newLogIdentificacao.sentido)) {
+      console.log(
+        `Placa ${newLogIdentificacao.placa} ignorada: direção ${newLogIdentificacao.sentido} contrária ao sentido da câmera ${camera.nome}`
+      );
+      return { mensagem: 'Leitura ignorada: sentido contrário ao da câmera' };
+    }
 
     // verifica se placa já foi inserida
     const placaEmLogIdentificacao = await databaseService.obterLogIdentificacaoPlaca(placaId);

@@ -162,6 +162,34 @@ ok(r.total === r.rows.length, 'total considera só as saídas exibidas', r);
 sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (20,21)');
 sql('DELETE FROM WhiteList WHERE id=900');
 
+// ---------------- leitura no sentido contrário ao propósito da câmera é ignorada
+sql("UPDATE Cameras SET posicionamento='F' WHERE id=2");
+const leitura = (placa, sentido) => ({ placa, sentido, data: new Date().toISOString(), camera_id: 2, picname: 'teste' });
+r = await admin('POST', '/logIdentificacao', leitura('REV1A11', 'reverse'));
+ok(/ignorada/.test(r.mensagem || ''), 'câmera de saída: leitura no sentido contrário é ignorada', r);
+ok(sql("SELECT COUNT(*) FROM LogIdentificacao WHERE placa='REV1A11'") === '0', 'e não gera identificação');
+r = await admin('POST', '/logIdentificacao', leitura('FWD1A11', 'forward'));
+ok(r.id > 0, 'câmera de saída: leitura no sentido correto é aceita', r);
+r = await admin('POST', '/logIdentificacao', leitura('UNK1A11', 'unknown'));
+ok(r.id > 0, 'direção desconhecida não é filtrada', r);
+sql("UPDATE Cameras SET posicionamento='T' WHERE id=2");
+r = await admin('POST', '/logIdentificacao', leitura('TRS1A11', 'forward'));
+ok(/ignorada/.test(r.mensagem || ''), 'posicionamento T: a direção contrária passa a ser forward', r);
+// câmera de entrada direcionada para fora: quem entra vem como reverse; forward é veículo saindo
+sql("UPDATE Cameras SET posicionamento='F' WHERE id=1");
+r = await admin('POST', '/logIdentificacao', { ...leitura('ENT9Z99', 'forward'), camera_id: 1 });
+ok(/ignorada/.test(r.mensagem || ''), 'câmera de entrada: leitura de veículo saindo é ignorada', r);
+r = await admin('POST', '/logIdentificacao', { ...leitura('ENT8Z88', 'reverse'), camera_id: 1 });
+ok(r.id > 0, 'câmera de entrada: leitura de veículo entrando é aceita', r);
+sql("UPDATE Cameras SET posicionamento=NULL WHERE id=1");
+sql("UPDATE Cameras SET posicionamento=NULL WHERE id=2");
+r = await admin('POST', '/logIdentificacao', leitura('SEM1A11', 'reverse'));
+ok(r.id > 0, 'câmera sem posicionamento não é filtrada', r);
+await new Promise((resolve) => setTimeout(resolve, 3000));
+sql("DELETE FROM LogIdentificacao WHERE placa IN ('FWD1A11','UNK1A11','SEM1A11','ENT8Z88')");
+sql("DELETE FROM Trafegos WHERE placa='ENT8Z88'");
+sql("DELETE FROM Saidas_nao_identificadas WHERE placa IN ('FWD1A11','UNK1A11','SEM1A11')");
+
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
 r = await op('GET', '/trafegos/client/1?status=servico');
