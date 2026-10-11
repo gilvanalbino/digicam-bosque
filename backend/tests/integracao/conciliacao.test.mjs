@@ -148,6 +148,20 @@ const jaRegistrada = sql("SELECT COUNT(*) FROM Saidas_nao_identificadas WHERE id
 ok(jaRegistrada === '0', 'descarte de identificação com saída já registrada não entra na fila', jaRegistrada);
 ok(sql('SELECT COUNT(*) FROM LogIdentificacao WHERE id=102') === '0', 'e a identificação é removida mesmo assim');
 
+// ---------------- saídas de veículos da green list: aparecem marcadas por 3 minutos e depois saem da fila
+sql(`INSERT INTO WhiteList (id,placa,nome,client_id,user_id,createdAt,updatedAt) VALUES (900,'GRN1A11','Morador Green',1,${opId},NOW(),NOW())`);
+sql(`INSERT INTO Saidas_nao_identificadas (id,identificador_placa,placa,data,camera_id,client_id,status,createdAt,updatedAt) VALUES
+ (20,'s-20','GRN1A11',UTC_TIMESTAMP(),2,1,'pendente',UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+ (21,'s-21','GRN1A11',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,2,1,'pendente',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,UTC_TIMESTAMP()-INTERVAL 10 MINUTE)`);
+r = await op('GET', '/saidasNaoIdentificadas/client/1');
+const verde = r.rows.find((s) => s.id === 20);
+ok(verde && verde.in_whitelist === true && verde.whitelist_nome === 'Morador Green', 'green list: saída recente aparece marcada', r);
+ok(!r.rows.find((s) => s.id === 21), 'green list: saída com mais de 3 minutos na fila fica oculta', r);
+ok(r.rows.filter((s) => s.id !== 20).every((s) => s.in_whitelist === false), 'demais saídas não são marcadas como green list', r);
+ok(r.total === r.rows.length, 'total considera só as saídas exibidas', r);
+sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (20,21)');
+sql('DELETE FROM WhiteList WHERE id=900');
+
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
 r = await op('GET', '/trafegos/client/1?status=servico');

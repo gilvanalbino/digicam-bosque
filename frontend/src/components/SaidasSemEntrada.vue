@@ -88,7 +88,8 @@
           :title="saidaAnteriorAEntrada(saida) ? 'Saída anterior à entrada: não pode ser associada' : null"
           @click="selecionar(saida)"
           class="cursor-grab relative rounded-lg border px-2 py-2 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-          :class="[entradasParecidas[saida.id] ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-300',
+          :class="[saida.in_whitelist ? 'white-list border-green-300'
+                     : entradasParecidas[saida.id] ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-300',
                    (saidaSelecionada && saidaSelecionada.id === saida.id) || alvoId === saida.id ? 'ring-4 ring-indigo-500 border-indigo-500'
                      : placaParecida(saida) ? 'ring-2 ring-amber-400 border-amber-400' : '',
                    arrastando && arrastando.id === saida.id ? 'opacity-50' : '',
@@ -104,6 +105,9 @@
             Saída: {{ saida.Camera && mapPortaria[saida.Camera.portaria_id] ? mapPortaria[saida.Camera.portaria_id].nome : '' }}
           </p>
           <p class="text-xs text-red-700 truncate">{{ formatarData(saida.data) }}</p>
+          <p v-if="saida.in_whitelist" class="text-xs font-medium text-green-800 truncate">
+            Green list{{ saida.whitelist_nome ? `: ${saida.whitelist_nome}` : '' }}
+          </p>
           <p v-if="entradasParecidas[saida.id]" class="text-xs font-medium text-blue-800 truncate">
             Parecida com: {{ entradasParecidas[saida.id].join(', ') }}
           </p>

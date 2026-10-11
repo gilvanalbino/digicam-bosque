@@ -1,5 +1,6 @@
 'use strict';
-const { SaidaNaoIdentificada, User, Camera, Trafego, sequelize } = require('../models');
+const { Op } = require('sequelize');
+const { SaidaNaoIdentificada, User, Camera, Trafego, WhiteList, sequelize } = require('../models');
 const trafegoService = require('./trafego.service');
 
 const list = async (cameraId) => {
@@ -48,8 +49,12 @@ const temAcessoCliente = async (loggedUserId, clientId) => {
   return !!(loggedUser.admin || (loggedUser.client_id && loggedUser.client_id === clientId));
 };
 
+// saídas de veículos da green list só aparecem na fila nos primeiros 3 minutos, como na aba Em Travessia
+const TEMPO_GREEN_LIST_NA_FILA_MS = 1000 * 60 * 3;
+
 /**
- * Lista as saídas não identificadas do cliente (por padrão, somente as pendentes)
+ * Lista as saídas não identificadas do cliente (por padrão, somente as pendentes).
+ * Nas pendentes, marca as de veículos da green list (in_whitelist) e oculta as que já passaram do tempo de exibição.
  */
 const listarPorCliente = async (loggedUserId, clientId, { status = 'pendente', page, pageSize } = {}) => {
   if (!(await temAcessoCliente(loggedUserId, clientId))) {
@@ -60,12 +65,29 @@ const listarPorCliente = async (loggedUserId, clientId, { status = 'pendente', p
     include: [{ model: Camera, attributes: ['id', 'nome', 'portaria_id'] }],
     order: [['data', 'DESC']],
   };
+
+  const greenList = new Map();
+  if (status === 'pendente') {
+    const veiculos = await WhiteList.findAll({ attributes: ['placa', 'nome'], where: { client_id: clientId }, raw: true });
+    veiculos.forEach((veiculo) => greenList.set(veiculo.placa, veiculo.nome));
+    if (greenList.size > 0) {
+      params.where[Op.or] = [
+        { placa: { [Op.notIn]: [...greenList.keys()] } },
+        { createdAt: { [Op.gt]: new Date(Date.now() - TEMPO_GREEN_LIST_NA_FILA_MS) } },
+      ];
+    }
+  }
   if (page) {
     params.limit = pageSize || 50;
     params.offset = (page - 1) * params.limit;
   }
   const { rows, count } = await SaidaNaoIdentificada.findAndCountAll(params);
-  return { rows, total: count, page: page || 1, pageSize: params.limit || count };
+  const saidas = rows.map((saida) => ({
+    ...saida.toJSON(),
+    in_whitelist: greenList.has(saida.placa),
+    whitelist_nome: greenList.get(saida.placa) || null,
+  }));
+  return { rows: saidas, total: count, page: page || 1, pageSize: params.limit || count };
 };
 
 /**
