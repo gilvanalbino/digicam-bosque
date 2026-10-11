@@ -11,52 +11,44 @@ console.log("SFTP_USER:", SFTP_USER);
 console.log("SFTP_PASS:", SFTP_PASS);
 
 
-const listarArquivos = (folder, pattern) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      let sftp = new Client();
-      await sftp.connect({
-        host: SFTP_HOST,
-        port: SFTP_PORT,
-        username: SFTP_USER,
-        password: SFTP_PASS,
-      });
-      let files = [];
-      if (pattern) {
-        files = await sftp.list("ftp/"+folder, pattern);
-      } else {
-        files = await sftp.list("ftp/"+folder);
-      }
-      sftp.end();
-
-      resolve(files);
-    } catch (error) {
-      console.log("Error listarArquivos: ", error); 
-      reject(error);
-    }
+const conectar = async (sftp) => {
+  await sftp.connect({
+    host: SFTP_HOST,
+    port: SFTP_PORT,
+    username: SFTP_USER,
+    password: SFTP_PASS,
   });
 };
 
-const lerArquivo = (folder, file) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      let sftp = new Client();
-      await sftp.connect({
-        host: SFTP_HOST,
-        port: SFTP_PORT,
-        username: SFTP_USER,
-        password: SFTP_PASS,
-      });
-      const buffer = await sftp.get(`ftp/${folder}/${file}`);
-      sftp.end();
-      // const contentType = 'image/jpeg'; // response.headers['content-type'].split(';')[0];
-      // const base64String = `data:${contentType};base64,${buffer.toString('base64')}`;
-      // resolve(base64String);
-      resolve(buffer);
-    } catch (error) {
-      reject(error);
+// fecha a conexão também quando a operação falha, para não deixar conexões abertas no servidor
+const desconectar = (sftp) => {
+  sftp.end().catch(() => {});
+};
+
+const listarArquivos = async (folder, pattern) => {
+  const sftp = new Client();
+  try {
+    await conectar(sftp);
+    if (pattern) {
+      return await sftp.list("ftp/"+folder, pattern);
     }
-  });
+    return await sftp.list("ftp/"+folder);
+  } catch (error) {
+    console.log("Error listarArquivos: ", error);
+    throw error;
+  } finally {
+    desconectar(sftp);
+  }
+};
+
+const lerArquivo = async (folder, file) => {
+  const sftp = new Client();
+  try {
+    await conectar(sftp);
+    return await sftp.get(`ftp/${folder}/${file}`);
+  } finally {
+    desconectar(sftp);
+  }
 };
 
 module.exports = {
