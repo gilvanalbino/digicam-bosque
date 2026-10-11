@@ -104,7 +104,8 @@ const listarPorStatus = async (loggedUserId, clientId, filtros) => {
     condicoes.push({ dataEntrada: { [Op.lte]: entradaAte } });
   }
 
-  let order = [['dataEntrada', 'ASC']];
+  // veículos sem saída: entradas mais recentes primeiro
+  let order = [['dataEntrada', 'DESC']];
   if (status === 'saidas') {
     order = ordem === 'saida_asc' ? [['dataSaida', 'ASC']] : [['dataSaida', 'DESC']];
   }
