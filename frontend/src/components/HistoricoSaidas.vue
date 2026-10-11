@@ -32,7 +32,8 @@
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gray-50">
         <tr>
-          <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imagem</th>
+          <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Foto entrada</th>
+          <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Foto saída</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placa</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
           <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -50,7 +51,12 @@
       <tbody class="bg-white divide-y divide-gray-200">
         <tr v-for="trafego in historico.rows" :key="trafego.id" class="hover:bg-gray-50 cursor-pointer" @click="visualizarImagem(trafego)">
           <td class="px-4 py-2 whitespace-nowrap">
-            <img class="h-12 w-12 rounded-lg" :src="`/images${trafego.imagem_saida_thumb || trafego.imagem_thumb}`" alt="" />
+            <img v-if="trafego.imagem_thumb" class="h-12 w-12 rounded-lg" :src="`/images${trafego.imagem_thumb}`" alt="Foto da entrada" />
+            <div v-else class="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
+          </td>
+          <td class="px-4 py-2 whitespace-nowrap">
+            <img v-if="trafego.imagem_saida_thumb" class="h-12 w-12 rounded-lg" :src="`/images${trafego.imagem_saida_thumb}`" alt="Foto da saída" />
+            <div v-else class="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
           </td>
           <td class="px-4 py-2 whitespace-nowrap">
             <div class="text-sm font-bold text-gray-900">{{ trafego.placa }}</div>
