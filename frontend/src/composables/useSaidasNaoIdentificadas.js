@@ -15,13 +15,21 @@ const initialState = {
     lista: [],
     total: 0,
   },
+  // interação entre o painel de saídas e os cards de entrada (seleção, arraste e pedido de associação)
+  interacao: {
+    selecionada: null,
+    arrastando: null,
+    // entrada arrastada de uma das listas até um card de saída (associação no sentido inverso)
+    entradaArrastada: null,
+    pedido: null,
+  },
 };
 
 const _state = reactive(cloneDeep(initialState));
 
 const state = readonly(_state);
 
-// polling somente enquanto a aba de conciliação estiver aberta
+// polling somente enquanto o painel de saídas estiver na tela
 let ativo = false;
 
 const clientId = () => useClientes.state.clientes.selecionado && useClientes.state.clientes.selecionado.id;
@@ -48,6 +56,41 @@ const actions = {
     verificarRetorno(ret);
     _state.saidas.lista = ret.rows;
     _state.saidas.total = ret.total;
+    // a saída selecionada pode ter sido resolvida por outro operador
+    const selecionada = _state.interacao.selecionada;
+    if (selecionada) {
+      _state.interacao.selecionada = ret.rows.find((s) => s.id === selecionada.id) || null;
+    }
+  },
+
+  selecionar(saida) {
+    const selecionada = _state.interacao.selecionada;
+    _state.interacao.selecionada = selecionada && selecionada.id === saida.id ? null : saida;
+  },
+
+  limparSelecao() {
+    _state.interacao.selecionada = null;
+  },
+
+  iniciarArraste(saida) {
+    _state.interacao.arrastando = saida;
+  },
+
+  finalizarArraste() {
+    _state.interacao.arrastando = null;
+  },
+
+  iniciarArrasteEntrada(entrada) {
+    _state.interacao.entradaArrastada = entrada;
+  },
+
+  finalizarArrasteEntrada() {
+    _state.interacao.entradaArrastada = null;
+  },
+
+  // pede a confirmação da associação da saída com a entrada (o painel de saídas abre o diálogo)
+  pedirAssociacao(entrada, saida) {
+    _state.interacao.pedido = { entrada, saida };
   },
 
   async arquivar(id, motivo) {
@@ -65,7 +108,7 @@ const actions = {
       useTrafegos.actions.removerDasListasSemSaida(trafegoId);
     } finally {
       await actions.carregarSaidas();
-      await useTrafegos.actions.carregarSemSaida();
+      useTrafegos.actions.carregarTrafegos(clientId()).catch(() => {});
     }
   },
 
@@ -76,6 +119,7 @@ const actions = {
 
   desativar() {
     ativo = false;
+    Object.assign(_state.interacao, cloneDeep(initialState.interacao));
   },
 };
 
@@ -88,5 +132,9 @@ setInterval(async () => {
     }
   }
 }, 5000);
+
+// uma saída só pode ser associada a uma entrada que aconteceu antes dela
+export const podeAssociar = (entrada, saida) =>
+  !!entrada && !!saida && new Date(saida.data) >= new Date(entrada.dataEntrada);
 
 export default { state: state, actions };

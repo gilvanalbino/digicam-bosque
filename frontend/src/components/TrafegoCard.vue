@@ -1,13 +1,13 @@
 <template>
   <div
       class="relative rounded-lg border border-gray-300 bg-white px-2 py-2 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
-      :class="[classeAlerta, destacado ? 'ring-4 ring-indigo-500 border-indigo-500' : '']"
+      :class="[classeAlerta, destacado ? 'ring-4 ring-indigo-500 border-indigo-500' : placaParecida ? 'ring-2 ring-amber-400 border-amber-400' : '']"
       @click="$emit('abrir', trafego)">
     <div class="flex-shrink-0">
-      <img class="rounded-lg" :class="compacto ? 'h-14 w-14' : 'h-20 w-20'" :src="`/images${trafego.imagem_thumb}`" alt="" />
+      <img class="rounded-lg" :class="compacto ? 'h-14 w-14' : 'h-20 w-20'" :src="`/images${trafego.imagem_thumb}`" alt="" draggable="false" />
     </div>
     <div class="flex-1 min-w-0">
-      <a href="#" class="focus:outline-none" @click.prevent>
+      <a href="#" class="focus:outline-none" draggable="false" @click.prevent>
         <span class="absolute inset-0" aria-hidden="true" />
         <p>
           <span class="text-lg font-bold text-gray-900 mr-2">
@@ -46,6 +46,10 @@
           class="relative z-10 mt-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
         Registrar Saída
       </button>
+      <button v-if="saidaParaAssociar" type="button" @click.stop="$emit('associarSaida', trafego)"
+          class="relative z-10 mt-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        Associar saída {{ saidaParaAssociar.placa }}
+      </button>
     </div>
   </div>
 </template>
@@ -63,8 +67,11 @@ export default {
     mostrarRegistrarSaida: { type: Boolean, default: false },
     compacto: { type: Boolean, default: false },
     destacado: { type: Boolean, default: false },
+    // saída sem entrada selecionada no painel lateral: exibe o botão para associá-la a esta entrada
+    saidaParaAssociar: { type: Object, default: null },
+    placaParecida: { type: Boolean, default: false },
   },
-  emits: ['abrir', 'registrarSaida'],
+  emits: ['abrir', 'registrarSaida', 'associarSaida'],
   setup(props) {
     const classeAlerta = computed(() => {
       const trafego = props.trafego;

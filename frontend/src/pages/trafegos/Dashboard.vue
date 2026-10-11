@@ -13,8 +13,17 @@
     </div>
     <hr class="mt-5 mb-5 bg-gray-400"/>
 
-    <!-- Tráfegos por status: travessia, serviço/visitantes, histórico e conciliação -->
-    <AbasTrafego/>
+    <div class="lg:flex lg:items-start lg:gap-6">
+      <!-- Tráfegos por status: travessia, serviço/visitantes e histórico -->
+      <div class="min-w-0 lg:flex-1">
+        <AbasTrafego/>
+      </div>
+
+      <!-- Saídas sem entrada identificada -->
+      <aside class="mt-8 lg:mt-0 lg:w-72 xl:w-80 lg:flex-shrink-0">
+        <SaidasSemEntrada/>
+      </aside>
+    </div>
   </Main>
 </template>
 
@@ -25,11 +34,12 @@ import { useRouter } from 'vue-router';
 import Main from '../layout/Main.vue'
 import PlacasIdentificadas from '../../components/PlacasIdentificadas.vue';
 import AbasTrafego from '../../components/AbasTrafego.vue';
+import SaidasSemEntrada from '../../components/SaidasSemEntrada.vue';
 
 import usePortarias from '../../composables/usePortarias'
 
 export default {
-  components: {Main, PlacasIdentificadas, AbasTrafego},
+  components: {Main, PlacasIdentificadas, AbasTrafego, SaidasSemEntrada},
   setup() {
 
     const portariaSelecionada = computed(() => usePortarias.state.portarias.selecionada);

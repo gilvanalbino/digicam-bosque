@@ -9,7 +9,7 @@ import useClientes from './useClientes';
 
 import { calcularPermanencia } from '../utils/dateUtil';
 
-export const ABAS = ['travessia', 'servico', 'historico', 'conciliacao'];
+export const ABAS = ['travessia', 'servico', 'historico'];
 
 const PAGE_SIZE = 50;
 
@@ -35,8 +35,6 @@ const initialState = {
       filtros: { placa: '' },
       ordem: 'saida_desc',
     },
-    // Aba 4 - entradas sem saída (travessia + serviço) para conciliação
-    semSaida: [],
   },
 };
 
@@ -45,7 +43,7 @@ const _state = reactive(cloneDeep(initialState));
 const state = readonly(_state);
 
 // descarta respostas de consultas antigas quando filtros/página mudam durante o polling
-const sequencia = { servico: 0, historico: 0, semSaida: 0 };
+const sequencia = { servico: 0, historico: 0 };
 
 // converte "HH:mm" (hoje) para ISO, usado nos filtros de horário de entrada
 const horarioHojeIso = (horario) => {
@@ -78,8 +76,6 @@ const actions = {
             await actions.carregarServico(client_id);
           } else if (_state.trafegos.abaAtiva === 'historico') {
             await actions.carregarHistorico(client_id);
-          } else if (_state.trafegos.abaAtiva === 'conciliacao') {
-            await actions.carregarSemSaida(client_id);
           }
         };
 
@@ -128,17 +124,6 @@ const actions = {
     }
     historico.rows = ret.rows;
     historico.total = ret.total;
-  },
-
-  async carregarSemSaida(client_id = clientId()) {
-    const seq = ++sequencia.semSaida;
-    const ret = await listarTrafegosPorStatus(useLogin.state.auth.token, client_id, 'sem_saida', {
-      page: 1,
-      pageSize: 200,
-    });
-    if (seq !== sequencia.semSaida) return;
-    _state.trafegos.semSaida = ret.rows;
-    calcPermanencia();
   },
 
   selecionarAba(aba) {
@@ -222,7 +207,6 @@ const actions = {
 
 const removerDasListasSemSaida = (id) => {
   _state.trafegos.lista = _state.trafegos.lista.filter((c) => c.id !== id);
-  _state.trafegos.semSaida = _state.trafegos.semSaida.filter((c) => c.id !== id);
   const servico = _state.trafegos.servico;
   if (servico.rows.find((c) => c.id === id)) {
     servico.rows = servico.rows.filter((c) => c.id !== id);
@@ -239,7 +223,7 @@ const calcPermanencia = () => {
       alarmou = true;
     }
   }
-  for (const trafego of [..._state.trafegos.servico.rows, ..._state.trafegos.semSaida]) {
+  for (const trafego of _state.trafegos.servico.rows) {
     trafego.permanencia = calcularPermanencia(trafego.dataEntrada);
   }
   if (alarmou) {

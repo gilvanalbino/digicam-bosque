@@ -52,8 +52,6 @@
     </template>
 
     <HistoricoSaidas v-else-if="abaAtiva === 'historico'" />
-
-    <ConciliacaoSaidas v-else-if="abaAtiva === 'conciliacao'" />
   </div>
 </template>
 
@@ -65,15 +63,13 @@ import debounce from 'lodash/debounce';
 import useClientes from '../composables/useClientes';
 import useTrafegos from '../composables/useTrafegos';
 import useMoradores from '../composables/useMoradores';
-import useSaidasNaoIdentificadas from '../composables/useSaidasNaoIdentificadas';
 
 import ListaTrafego from './ListaTrafego.vue';
 import HistoricoSaidas from './HistoricoSaidas.vue';
-import ConciliacaoSaidas from './ConciliacaoSaidas.vue';
 import Paginacao from './Paginacao.vue';
 
 export default {
-  components: { ListaTrafego, HistoricoSaidas, ConciliacaoSaidas, Paginacao },
+  components: { ListaTrafego, HistoricoSaidas, Paginacao },
   setup() {
     const route = useRoute();
     const router = useRouter();
@@ -85,11 +81,6 @@ export default {
       { id: 'travessia', titulo: 'Em Travessia', contador: trafegos.value.lista.length },
       { id: 'servico', titulo: 'Em Serviço / Visitantes Autorizados', contador: trafegos.value.servico.total },
       { id: 'historico', titulo: 'Histórico de Saídas', contador: trafegos.value.historico.total },
-      {
-        id: 'conciliacao',
-        titulo: 'Saídas sem Entrada Identificada',
-        contador: abaAtiva.value === 'conciliacao' ? useSaidasNaoIdentificadas.state.saidas.total : null,
-      },
     ]);
 
     const selecionar = (aba) => {

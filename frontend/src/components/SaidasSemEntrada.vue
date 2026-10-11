@@ -6,13 +6,16 @@
     <div v-if="par.entrada && par.saida" class="mt-4 grid grid-cols-2 gap-4">
       <div>
         <p class="text-xs font-bold uppercase text-green-700">Entrada</p>
-        <img class="mt-1 rounded-lg" :src="`/images${par.entrada.imagem}`" alt="" />
+        <img v-if="par.entrada.imagem && !imagemIndisponivel.entrada" class="mt-1 rounded-lg" :src="`/images${par.entrada.imagem}`" alt=""
+            @error="imagemIndisponivel.entrada = true" />
+        <div v-else class="mt-1 h-24 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">Sem imagem</div>
         <p class="mt-1 text-lg font-bold text-gray-900">{{ par.entrada.placa }}</p>
         <p class="text-sm text-gray-600">{{ formatarData(par.entrada.dataEntrada) }}</p>
       </div>
       <div>
         <p class="text-xs font-bold uppercase text-red-700">Saída</p>
-        <img v-if="par.saida.imagem_carro" class="mt-1 rounded-lg" :src="`/images${par.saida.imagem_carro}`" alt="" />
+        <img v-if="par.saida.imagem_carro && !imagemIndisponivel.saida" class="mt-1 rounded-lg" :src="`/images${par.saida.imagem_carro}`" alt=""
+            @error="imagemIndisponivel.saida = true" />
         <div v-else class="mt-1 h-24 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">Sem imagem</div>
         <p class="mt-1 text-lg font-bold text-gray-900">{{ par.saida.placa }}</p>
         <p class="text-sm text-gray-600">{{ formatarData(par.saida.data) }}</p>
@@ -50,136 +53,81 @@
     </div>
   </ModalDialog>
 
-  <p class="text-sm text-gray-500">
-    Arraste uma saída até a entrada correspondente (ou o inverso), ou selecione uma de cada lado e clique em <b>Associar</b>.
-  </p>
-  <div v-if="entradaSelecionada || saidaSelecionada" class="mt-3 flex items-center gap-3">
-    <button type="button" :disabled="!entradaSelecionada || !saidaSelecionada" @click="abrirAssociacao(entradaSelecionada, saidaSelecionada)"
-        class="px-3 py-2 rounded-md bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-      Associar {{ entradaSelecionada ? entradaSelecionada.placa : '…' }} ⇄ {{ saidaSelecionada ? saidaSelecionada.placa : '…' }}
-    </button>
-    <a href="#" class="text-sm text-gray-500 underline" @click.prevent="limparSelecao">Limpar seleção</a>
-  </div>
+  <section aria-labelledby="titulo-saidas-sem-entrada" class="lg:sticky lg:top-4">
+    <h3 id="titulo-saidas-sem-entrada" class="text-sm font-medium text-gray-900">
+      Saídas sem Entrada Identificada
+      <span class="ml-1 py-0.5 px-2 rounded-full text-xs font-medium bg-gray-100 text-gray-900">{{ total }}</span>
+    </h3>
+    <p class="mt-1 text-xs text-gray-500">
+      Arraste uma saída até a entrada correspondente (ou a entrada até a saída), ou selecione a saída e clique em <b>Associar saída</b> no card da entrada.
+    </p>
+    <p v-if="saidaSelecionada" class="mt-2 text-xs text-indigo-700">
+      Saída <b>{{ saidaSelecionada.placa }}</b> selecionada.
+      <a href="#" class="text-gray-500 underline" @click.prevent="limparSelecao">Limpar seleção</a>
+    </p>
 
-  <div class="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
-    <!-- Entradas sem saída -->
-    <section>
-      <h3 class="text-sm leading-4 italic font-medium text-gray-500">
-        Entradas sem saída (total: {{ entradas.length }})
-      </h3>
-      <div v-if="entradas.length===0" class="mt-2 text-sky-500">Nenhuma entrada sem saída</div>
-      <div v-else class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div v-for="trafego in entradas" :key="trafego.id"
-            draggable="true"
-            @dragstart="iniciarArraste($event, 'entrada', trafego)"
-            @dragend="finalizarArraste"
-            @dragover="permitirSoltar($event, 'entrada', trafego)"
-            @dragleave="sairDoAlvo('entrada', trafego)"
-            @drop.prevent="soltar('entrada', trafego)"
-            class="cursor-grab"
-            :class="arrastando && arrastando.item.id === trafego.id && arrastando.tipo === 'entrada' ? 'opacity-50' : ''">
-          <TrafegoCard :trafego="trafego" :mapPortaria="mapPortaria" :mapMoradores="mapMoradores" compacto
-              :destacado="destacado('entrada', trafego)"
-              @abrir="selecionar('entrada', trafego)" />
+    <div v-if="saidas.length===0" class="mt-2 text-sky-500">Nenhuma saída pendente</div>
+    <div v-else class="mt-3 grid grid-cols-1 gap-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:p-1">
+      <div v-for="saida in saidas" :key="saida.id"
+          draggable="true"
+          @dragstart="iniciarArraste($event, saida)"
+          @dragend="finalizarArraste"
+          @dragover="permitirSoltarEntrada($event, saida)"
+          @dragleave="sairDoAlvo(saida)"
+          @drop.prevent="soltarEntrada(saida)"
+          :title="saidaAnteriorAEntrada(saida) ? 'Saída anterior à entrada: não pode ser associada' : null"
+          @click="selecionar(saida)"
+          class="cursor-grab relative rounded-lg border border-gray-300 bg-white px-2 py-2 shadow-sm flex items-center space-x-3 hover:border-gray-400"
+          :class="[(saidaSelecionada && saidaSelecionada.id === saida.id) || alvoId === saida.id ? 'ring-4 ring-indigo-500 border-indigo-500'
+                     : placaParecida(saida) ? 'ring-2 ring-amber-400 border-amber-400' : '',
+                   arrastando && arrastando.id === saida.id ? 'opacity-50' : '',
+                   saidaAnteriorAEntrada(saida) ? 'opacity-40' : '']">
+        <div class="flex-shrink-0">
+          <img v-if="saida.imagem_carro_thumb" class="h-14 w-14 rounded-lg" :src="`/images${saida.imagem_carro_thumb}`" alt="" draggable="false" />
+          <div v-else class="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-lg font-bold text-gray-900">{{ saida.placa }}</p>
+          <p class="text-xs text-red-700 font-bold truncate">
+            Saída: {{ saida.Camera && mapPortaria[saida.Camera.portaria_id] ? mapPortaria[saida.Camera.portaria_id].nome : '' }}
+          </p>
+          <p class="text-xs text-red-700 truncate">{{ formatarData(saida.data) }}</p>
+          <button type="button" @click.stop="abrirArquivamento(saida)"
+              class="mt-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+            Arquivar
+          </button>
         </div>
       </div>
-    </section>
-
-    <!-- Saídas sem entrada identificada -->
-    <section>
-      <h3 class="text-sm leading-4 italic font-medium text-gray-500">
-        Saídas sem entrada identificada (total: {{ saidas.length }})
-      </h3>
-      <div v-if="saidas.length===0" class="mt-2 text-sky-500">Nenhuma saída pendente</div>
-      <div v-else class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div v-for="saida in saidas" :key="saida.id"
-            draggable="true"
-            @dragstart="iniciarArraste($event, 'saida', saida)"
-            @dragend="finalizarArraste"
-            @dragover="permitirSoltar($event, 'saida', saida)"
-            @dragleave="sairDoAlvo('saida', saida)"
-            @drop.prevent="soltar('saida', saida)"
-            @click="selecionar('saida', saida)"
-            class="cursor-grab relative rounded-lg border border-gray-300 bg-white px-2 py-2 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-            :class="[destacado('saida', saida) ? 'ring-4 ring-indigo-500 border-indigo-500' : '',
-                     arrastando && arrastando.item.id === saida.id && arrastando.tipo === 'saida' ? 'opacity-50' : '']">
-          <div class="flex-shrink-0">
-            <img v-if="saida.imagem_carro_thumb" class="h-14 w-14 rounded-lg" :src="`/images${saida.imagem_carro_thumb}`" alt="" draggable="false" />
-            <div v-else class="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-lg font-bold text-gray-900">{{ saida.placa }}</p>
-            <p class="text-xs text-red-700 font-bold truncate">
-              Saída: {{ saida.Camera && mapPortaria[saida.Camera.portaria_id] ? mapPortaria[saida.Camera.portaria_id].nome : '' }}
-            </p>
-            <p class="text-xs text-red-700 truncate">{{ formatarData(saida.data) }}</p>
-            <button type="button" @click.stop="abrirArquivamento(saida)"
-                class="mt-1 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-              Arquivar
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>
+    </div>
+    <p v-if="total > saidas.length" class="mt-2 text-xs text-gray-500">
+      Exibindo as {{ saidas.length }} saídas mais recentes de {{ total }}.
+    </p>
+  </section>
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { notify } from 'notiwind';
 
 import usePortarias from '../composables/usePortarias';
-import useTrafegos from '../composables/useTrafegos';
-import useMoradores from '../composables/useMoradores';
-import useSaidasNaoIdentificadas from '../composables/useSaidasNaoIdentificadas';
+import useSaidasNaoIdentificadas, { podeAssociar } from '../composables/useSaidasNaoIdentificadas';
 
 import { formatarData } from '../utils/dateUtil';
+import { diferencasPlacas as diferencas } from '../utils/placaUtil';
 
 import ModalDialog from './ModalDialog.vue';
-import TrafegoCard from './TrafegoCard.vue';
-
-// quantidade de posições diferentes entre duas placas (tolerância a erro de OCR)
-const diferencas = (placaA = '', placaB = '') => {
-  const tamanho = Math.max(placaA.length, placaB.length);
-  let diff = 0;
-  for (let i = 0; i < tamanho; i++) {
-    if (placaA[i] !== placaB[i]) diff++;
-  }
-  return diff;
-};
-
-// ordena pelas placas mais parecidas com a referência, mantendo a ordem original no empate
-const ordenarPorSemelhanca = (lista, placaReferencia) => {
-  if (!placaReferencia) return lista;
-  return lista
-    .map((item, indice) => ({ item, indice, diff: diferencas(item.placa, placaReferencia) }))
-    .sort((a, b) => a.diff - b.diff || a.indice - b.indice)
-    .map(({ item }) => item);
-};
 
 export default {
-  components: { ModalDialog, TrafegoCard },
+  components: { ModalDialog },
   setup() {
     const mapPortaria = computed(() => usePortarias.state.portarias.map);
-    const mapMoradores = computed(() => useMoradores.state.moradores.map);
 
-    const entradaSelecionada = ref(null);
-    const saidaSelecionada = ref(null);
-    const arrastando = ref(null);
-    const alvo = ref(null);
-
-    // referência para ordenar a coluna oposta: item selecionado por clique
-    // (não reordena durante o arraste, para o card sob o cursor não mudar)
-    const referencia = (tipo) => {
-      const selecionado = tipo === 'entrada' ? entradaSelecionada.value : saidaSelecionada.value;
-      return selecionado ? selecionado.placa : null;
-    };
-
-    const entradas = computed(() => ordenarPorSemelhanca(useTrafegos.state.trafegos.semSaida, referencia('saida')));
-    const saidas = computed(() => ordenarPorSemelhanca(useSaidasNaoIdentificadas.state.saidas.lista, referencia('entrada')));
+    const saidas = computed(() => useSaidasNaoIdentificadas.state.saidas.lista);
+    const total = computed(() => useSaidasNaoIdentificadas.state.saidas.total);
+    const saidaSelecionada = computed(() => useSaidasNaoIdentificadas.state.interacao.selecionada);
+    const arrastando = computed(() => useSaidasNaoIdentificadas.state.interacao.arrastando);
 
     onMounted(() => {
-      useTrafegos.actions.carregarSemSaida().catch((error) => console.log('Erro carregando entradas sem saída', error));
       useSaidasNaoIdentificadas.actions.ativar().catch((error) => console.log('Erro carregando saídas não identificadas', error));
     });
 
@@ -187,58 +135,58 @@ export default {
       useSaidasNaoIdentificadas.actions.desativar();
     });
 
-    const selecionar = (tipo, item) => {
-      const selecionado = tipo === 'entrada' ? entradaSelecionada : saidaSelecionada;
-      selecionado.value = selecionado.value && selecionado.value.id === item.id ? null : item;
+    const selecionar = (saida) => {
+      useSaidasNaoIdentificadas.actions.selecionar(saida);
     };
 
     const limparSelecao = () => {
-      entradaSelecionada.value = null;
-      saidaSelecionada.value = null;
+      useSaidasNaoIdentificadas.actions.limparSelecao();
     };
 
-    const destacado = (tipo, item) => {
-      const selecionado = tipo === 'entrada' ? entradaSelecionada.value : saidaSelecionada.value;
-      const ehAlvo = alvo.value && alvo.value.tipo === tipo && alvo.value.item.id === item.id;
-      return ehAlvo || (selecionado && selecionado.id === item.id);
-    };
-
-    // ---------- arrastar e soltar (HTML5)
-    const iniciarArraste = (event, tipo, item) => {
-      arrastando.value = { tipo, item };
-      event.dataTransfer.effectAllowed = 'link';
+    // ---------- arrastar (HTML5): a saída é solta sobre um card de entrada, nas abas ao lado
+    const iniciarArraste = (event, saida) => {
+      // "move" e não "link": o Wayland não tem a ação de link e o navegador recusa o drop
+      event.dataTransfer.effectAllowed = 'move';
       // necessário para o Firefox iniciar o arraste
-      event.dataTransfer.setData('text/plain', `${tipo}:${item.id}`);
+      event.dataTransfer.setData('text/plain', `saida:${saida.id}`);
+      // o estado muda depois do dragstart: alterar a tela durante o evento faz o Chrome cancelar o arraste
+      setTimeout(() => useSaidasNaoIdentificadas.actions.iniciarArraste(saida), 0);
     };
 
     const finalizarArraste = () => {
-      arrastando.value = null;
-      alvo.value = null;
+      useSaidasNaoIdentificadas.actions.finalizarArraste();
     };
 
-    const permitirSoltar = (event, tipo, item) => {
-      // só aceita soltar sobre um card da coluna oposta
-      if (arrastando.value && arrastando.value.tipo !== tipo) {
+    // ---------- sentido inverso: uma entrada arrastada das listas é solta sobre o card da saída
+    const entradaArrastada = computed(() => useSaidasNaoIdentificadas.state.interacao.entradaArrastada);
+    const alvoId = ref(null);
+
+    const saidaAnteriorAEntrada = (saida) => !!entradaArrastada.value && !podeAssociar(entradaArrastada.value, saida);
+
+    // destaca as saídas com placa parecida com a da entrada arrastada
+    const placaParecida = (saida) =>
+      podeAssociar(entradaArrastada.value, saida) && diferencas(entradaArrastada.value.placa, saida.placa) <= 2;
+
+    const permitirSoltarEntrada = (event, saida) => {
+      if (podeAssociar(entradaArrastada.value, saida)) {
         event.preventDefault();
-        event.dataTransfer.dropEffect = 'link';
-        alvo.value = { tipo, item };
+        event.dataTransfer.dropEffect = 'move';
+        alvoId.value = saida.id;
       }
     };
 
-    const sairDoAlvo = (tipo, item) => {
-      if (alvo.value && alvo.value.tipo === tipo && alvo.value.item.id === item.id) {
-        alvo.value = null;
+    const sairDoAlvo = (saida) => {
+      if (alvoId.value === saida.id) {
+        alvoId.value = null;
       }
     };
 
-    const soltar = (tipo, item) => {
-      if (!arrastando.value || arrastando.value.tipo === tipo) return;
-      const arrastado = arrastando.value.item;
-      finalizarArraste();
-      if (tipo === 'entrada') {
-        abrirAssociacao(item, arrastado);
-      } else {
-        abrirAssociacao(arrastado, item);
+    const soltarEntrada = (saida) => {
+      const entrada = entradaArrastada.value;
+      alvoId.value = null;
+      if (podeAssociar(entrada, saida)) {
+        useSaidasNaoIdentificadas.actions.finalizarArrasteEntrada();
+        useSaidasNaoIdentificadas.actions.pedirAssociacao(entrada, saida);
       }
     };
 
@@ -253,11 +201,21 @@ export default {
     const processando = ref(false);
 
     const par = ref({ entrada: null, saida: null });
+    // imagem que não carregou (arquivo ausente) dá lugar ao aviso "Sem imagem"
+    const imagemIndisponivel = ref({ entrada: false, saida: false });
     const showModalAssociar = ref(false);
-    const abrirAssociacao = (entrada, saida) => {
-      par.value = { entrada, saida };
-      abrirModal(showModalAssociar);
-    };
+
+    // pedido vindo de um card de entrada (saída solta sobre ele ou botão "Associar saída")
+    watch(
+      () => useSaidasNaoIdentificadas.state.interacao.pedido,
+      (pedido) => {
+        if (pedido) {
+          par.value = { entrada: pedido.entrada, saida: pedido.saida };
+          imagemIndisponivel.value = { entrada: false, saida: false };
+          abrirModal(showModalAssociar);
+        }
+      }
+    );
 
     const confirmarAssociacao = async () => {
       processando.value = true;
@@ -287,9 +245,6 @@ export default {
       try {
         await useSaidasNaoIdentificadas.actions.arquivar(saidaArquivar.value.id, motivo.value);
         notify({ group: 'success', title: 'Sucesso', text: `Saída ${saidaArquivar.value.placa} arquivada` }, 4000);
-        if (saidaSelecionada.value && saidaSelecionada.value.id === saidaArquivar.value.id) {
-          saidaSelecionada.value = null;
-        }
       } catch (error) {
         notify({ group: 'error', title: 'Erro', text: error.message || 'Erro arquivando a saída' }, 4000);
       } finally {
@@ -300,24 +255,24 @@ export default {
 
     return {
       mapPortaria,
-      mapMoradores,
-      entradas,
       saidas,
-      entradaSelecionada,
+      total,
       saidaSelecionada,
       arrastando,
       selecionar,
       limparSelecao,
-      destacado,
       iniciarArraste,
       finalizarArraste,
-      permitirSoltar,
+      alvoId,
+      saidaAnteriorAEntrada,
+      placaParecida,
+      permitirSoltarEntrada,
       sairDoAlvo,
-      soltar,
+      soltarEntrada,
       processando,
       par,
+      imagemIndisponivel,
       showModalAssociar,
-      abrirAssociacao,
       confirmarAssociacao,
       saidaArquivar,
       motivo,
