@@ -456,15 +456,12 @@ Não há nada a reverter em produção.
   produção: corrigir o `entrypoint.sh` (gerar a configuração sem `envsubst`), mover `sequelize-cli` para
   `dependencies` e fazer o entrypoint parar se a migração falhar; ou assumir a migração como passo manual, como
   na Fase 4.
-- **P2 — Câmera Saída B2 não envia fotos para este servidor.** Verificado em 2026-10-11: o FTP da câmera
-  Saída B2 (10.0.0.145) está configurado para o endereço 10.0.0.174, que não responde; as demais enviam para
-  10.0.0.126. Nenhuma leitura dessa câmera tem foto própria no SFTP. Quando a placa tem um único arquivo no dia,
-  o sistema usa esse arquivo, que nesse caso é a foto da **entrada**, como foto da saída; quando não tem
-  nenhum (veículo sem entrada lida no dia) ou tem mais de um, a saída fica sem foto. A diferença de ~1,5 min
-  entre o nome do arquivo e a leitura, antes atribuída ao relógio da câmera, é o tempo de travessia entre a
-  entrada e a saída. Correção: apontar o FTP da câmera para 10.0.0.126 (configuração da câmera, fora deste
-  repositório). Depois disso, vale o sistema escolher o arquivo de horário mais próximo da leitura, para não
-  confundir foto de entrada com foto de saída.
+- **P2 — Câmera Saída B2 não enviava fotos para este servidor (resolvido em 2026-10-11).** O FTP da câmera
+  Saída B2 (10.0.0.145) apontava para 10.0.0.174, endereço que não existe na rede; as demais já enviavam para
+  10.0.0.126. O endereço foi trocado para 10.0.0.126 e as leituras seguintes passaram a ter foto própria no
+  servidor. Enquanto durou, as saídas por essa câmera ficavam sem foto ou recebiam a foto da entrada; o sistema
+  agora só usa foto com até 10 s de diferença para a leitura. Ainda vale fixar o endereço de rede dessa câmera,
+  que está em modo dinâmico (DHCP): se ele mudar, o sistema perde o acesso a ela.
 - **P3 — Backup.** O único dump de produção em disco é de mar/2024. O dump da Fase 3 passa a ser o mais recente;
   guardar uma cópia fora da máquina.
 - **P4 — `Dockerfile.hotfix`.** Veio para a branch no merge do hotfix e só serve para gerar a imagem do hotfix
