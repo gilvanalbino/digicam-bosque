@@ -14,6 +14,29 @@ const initialState = {
   },
 };
 
+// cliente selecionado, lembrado ao recarregar a página
+const CHAVE_CLIENTE = 'digicam.clienteId';
+
+const lerClienteSalvo = () => {
+  try {
+    return Number(sessionStorage.getItem(CHAVE_CLIENTE)) || null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const gravarClienteSalvo = (id) => {
+  try {
+    if (id) {
+      sessionStorage.setItem(CHAVE_CLIENTE, String(id));
+    } else {
+      sessionStorage.removeItem(CHAVE_CLIENTE);
+    }
+  } catch (error) {
+    console.log('Não foi possível gravar o cliente selecionado', error);
+  }
+};
+
 const _state = reactive(cloneDeep(initialState));
 
 const state = readonly(_state);
@@ -26,12 +49,19 @@ const actions = {
         const clienteIdAtualSelecionado = _state.clientes.selecionado ? _state.clientes.selecionado.id : null;
         const token = useLogin.state.auth.token;
         const clientes = await listarClientes(token);
+        // token inválido chega com status 200 e o corpo do erro no lugar da lista
+        if (!Array.isArray(clientes)) {
+          throw new Error('Não foi possível carregar os clientes');
+        }
         _state.clientes.lista = clientes;
 
         // seleciona o cliente
         const clientesAtivos = _state.clientes.lista.filter((c) => c.active);
         if (clientesAtivos.length > 0) {
-          await this.selecionarCliente(clienteIdAtualSelecionado || clientesAtivos[0].id);
+          const clienteSalvo = clientesAtivos.find((c) => c.id === lerClienteSalvo());
+          await this.selecionarCliente(
+            clienteIdAtualSelecionado || (clienteSalvo && clienteSalvo.id) || clientesAtivos[0].id
+          );
         } else {
           usePortarias.actions.descarregarPortarias();
         }
@@ -48,11 +78,13 @@ const actions = {
     if (id) {
       const novoClienteSelecionado = _state.clientes.lista.filter((p) => p.id === id)[0];
       _state.clientes.selecionado = novoClienteSelecionado;
+      gravarClienteSalvo(id);
 
       // atualiza as portarias
       usePortarias.actions.carregarPortarias(_state.clientes.selecionado.id);
     } else {
       _state.clientes.selecionado = null;
+      gravarClienteSalvo(null);
     }
   },
 

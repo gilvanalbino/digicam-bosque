@@ -4,11 +4,39 @@ import { reactive, readonly } from 'vue';
 import cloneDeep from 'lodash/cloneDeep';
 import { api } from '../utils/axios';
 
+// a sessão fica no sessionStorage: sobrevive ao recarregar a página e termina ao fechar a aba
+const CHAVE_SESSAO = 'digicam.sessao';
+
+const lerSessao = () => {
+  try {
+    const sessao = JSON.parse(sessionStorage.getItem(CHAVE_SESSAO));
+    return sessao && sessao.token && sessao.user ? sessao : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const gravarSessao = (sessao) => {
+  try {
+    if (sessao) {
+      sessionStorage.setItem(CHAVE_SESSAO, JSON.stringify(sessao));
+    } else {
+      sessionStorage.removeItem(CHAVE_SESSAO);
+    }
+  } catch (error) {
+    console.log('Não foi possível gravar a sessão', error);
+  }
+};
+
+const sessaoSalva = lerSessao();
+
 const initialState = {
   auth: {
-    logged: false,
-    token: null,
-    user: null,
+    logged: !!sessaoSalva,
+    token: sessaoSalva ? sessaoSalva.token : null,
+    user: sessaoSalva ? sessaoSalva.user : null,
+    // sessão recuperada após recarregar a página: os dados iniciais ainda precisam ser carregados
+    restaurada: !!sessaoSalva,
   },
 };
 
@@ -28,6 +56,8 @@ const actions = {
           _state.auth.logged = true;
           _state.auth.token = token;
           _state.auth.user = { email, name, admin, admin_client };
+          _state.auth.restaurada = false;
+          gravarSessao({ token, user: _state.auth.user });
           resolve();
         })
         .catch((error) => {
@@ -40,10 +70,16 @@ const actions = {
     limparTrafegoSessao = l;
   },
 
+  confirmarRestauracao() {
+    _state.auth.restaurada = false;
+  },
+
   logout() {
-    _state.logged = false;
-    _state.user = null;
-    _state.token = null;
+    _state.auth.logged = false;
+    _state.auth.user = null;
+    _state.auth.token = null;
+    _state.auth.restaurada = false;
+    gravarSessao(null);
 
     limparTrafegoSessao();
   },
