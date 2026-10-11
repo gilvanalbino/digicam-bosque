@@ -456,10 +456,15 @@ Não há nada a reverter em produção.
   produção: corrigir o `entrypoint.sh` (gerar a configuração sem `envsubst`), mover `sequelize-cli` para
   `dependencies` e fazer o entrypoint parar se a migração falhar; ou assumir a migração como passo manual, como
   na Fase 4.
-- **P2 — Fotos de placas repetidas no dia.** O horário no nome do arquivo no SFTP não coincide com o horário da
-  leitura (em uma leitura observada, 21:16:57 no arquivo e 21:18:35 na leitura). Quando a mesma placa tem mais
-  de uma foto no dia, o filtro por minuto exato não escolhe nenhuma e o registro fica sem foto. Ajuste sugerido:
-  escolher o arquivo de horário mais próximo. O modo sombra do HML é um bom lugar para validar.
+- **P2 — Câmera Saída B2 não envia fotos para este servidor.** Verificado em 2026-10-11: o FTP da câmera
+  Saída B2 (10.0.0.145) está configurado para o endereço 10.0.0.174, que não responde; as demais enviam para
+  10.0.0.126. Nenhuma leitura dessa câmera tem foto própria no SFTP. Quando a placa tem um único arquivo no dia,
+  o sistema usa esse arquivo, que nesse caso é a foto da **entrada**, como foto da saída; quando não tem
+  nenhum (veículo sem entrada lida no dia) ou tem mais de um, a saída fica sem foto. A diferença de ~1,5 min
+  entre o nome do arquivo e a leitura, antes atribuída ao relógio da câmera, é o tempo de travessia entre a
+  entrada e a saída. Correção: apontar o FTP da câmera para 10.0.0.126 (configuração da câmera, fora deste
+  repositório). Depois disso, vale o sistema escolher o arquivo de horário mais próximo da leitura, para não
+  confundir foto de entrada com foto de saída.
 - **P3 — Backup.** O único dump de produção em disco é de mar/2024. O dump da Fase 3 passa a ser o mais recente;
   guardar uma cópia fora da máquina.
 - **P4 — `Dockerfile.hotfix`.** Veio para a branch no merge do hotfix e só serve para gerar a imagem do hotfix
