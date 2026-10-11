@@ -15,7 +15,7 @@ const carregarDadosIniciais = async () => {
 };
 
 export const authGuard = () => {
-  return async (to, from, next) => {
+  return (to, from, next) => {
     // páginas publicas
     const publicPages = ['/login']; //, '/register', '/home', '/forgotpassword'];
     const authRequired = !publicPages.includes(to.path);
@@ -30,18 +30,22 @@ export const authGuard = () => {
       return next('/login');
     }
 
-    if (useLogin.state.auth.restaurada) {
-      try {
-        await carregarDadosIniciais();
+    // caso normal: decide na hora, sem esperar nada (uma navegação pendente pode ser cancelada por outra)
+    if (!useLogin.state.auth.restaurada) {
+      return next();
+    }
+
+    // sessão recuperada após recarregar a página: carrega os dados iniciais antes de abrir a tela
+    return carregarDadosIniciais()
+      .then(() => {
         useLogin.actions.confirmarRestauracao();
-      } catch (error) {
+        next();
+      })
+      .catch((error) => {
         // sessão guardada não vale mais (token recusado pelo backend): volta para o login
         console.log('Sessão expirada ou inválida', error);
         useLogin.actions.logout();
-        return next('/login');
-      }
-    }
-
-    return next();
+        next('/login');
+      });
   };
 };
