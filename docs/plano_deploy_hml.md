@@ -1,7 +1,9 @@
 # Plano de deploy — ambiente de homologação (HML) independente de produção
 
 Levantamento feito em 2026-10-10 na máquina `serverbosque` (10.0.0.126) e revisto em 2026-10-11.
-Nada deste plano foi executado ainda.
+
+**Estado:** executado em 2026-10-11 (Fases 0 a 5 e 7), com as imagens `hml-108045f`. A leitura das câmeras
+(Fase 6, item 3) e a cópia opcional das fotos não foram ligadas. Resultados na seção 9.
 
 ## 1. Objetivo e resultado esperado
 
@@ -163,6 +165,8 @@ services:
 
   mysql:
     image: mysql:8.0
+    # sem log binário: não há réplica, e as fotos em base64 da LogIdentificacao gerariam ~1 GB de log por dia
+    command: ["--skip-log-bin"]
     environment:
       - TZ=America/Bahia
       - MYSQL_ROOT_PASSWORD=${HML_DB_ROOT_PASS}
@@ -295,15 +299,19 @@ cd /home/digicam/projeto/src
 git status --short            # deve estar limpo
 TAG=$(git rev-parse --short HEAD)
 
-docker build --target production -t digicam-backend:hml-$TAG          ./backend
-docker build --target production -t digicam-frontend:hml-$TAG         ./frontend
-docker build --target production -t digicam-verificar-placas:hml-$TAG ./verificar-novas-placas
+sed -n '/^# Production stage/,$p' backend/Dockerfile \
+  | docker build -f - -t digicam-backend:hml-$TAG ./backend
+sed -n '/^# Build stage/,$p' frontend/Dockerfile \
+  | docker build -f - -t digicam-frontend:hml-$TAG ./frontend
+sed -n '/^# Production stage/,$p' verificar-novas-placas/Dockerfile \
+  | docker build -f - -t digicam-verificar-placas:hml-$TAG ./verificar-novas-placas
 
 docker images | grep digicam  # as imagens de produção devem manter os IMAGE ID anotados na Fase 0
 ```
 
-- `--target production` é necessário: o estágio `development` do backend faz `apt-get update` em Debian buster
-  (fim de vida) e tende a falhar.
+- O `sed` entrega ao build só os estágios de produção de cada Dockerfile. Esta máquina não tem o `buildx`, e o
+  construtor antigo executa todos os estágios mesmo com `--target production`; o estágio `development` do
+  backend faz `apt-get update` em Debian buster (fim de vida) e falha.
 - O build precisa de internet (imagens base e npm).
 - Gravar `HML_TAG=$TAG` no `homologacao/.env`.
 
@@ -426,6 +434,11 @@ Conferir, com o HML no ar:
 | Recarregar o banco | parar backend, `DROP DATABASE`/`CREATE DATABASE digicam_hml`, repetir Fases 3 e 4 |
 | Acesso ao banco | `mysql -h 127.0.0.1 -P 3307 -u digicam_hml -p digicam_hml` |
 | Limpar cache de build | `docker builder prune` (não remove imagens) |
+| Mudar a configuração de um serviço | `docker-compose -p digicam-hml rm -sf <serviço>` e depois `up -d` |
+
+O `docker-compose` 1.29 desta máquina falha ao recriar um container já existente (`KeyError: 'ContainerConfig'`)
+e deixa o antigo parado com o nome trocado. Por isso, ao mudar imagem ou configuração de um serviço, remover o
+container antes de subir. Os dados do banco ficam no volume e não são afetados.
 
 Acompanhar `df -h /` semanalmente enquanto o modo sombra estiver ligado.
 
@@ -450,3 +463,23 @@ Não há nada a reverter em produção.
   guardar uma cópia fora da máquina.
 - **P4 — `Dockerfile.hotfix`.** Veio para a branch no merge do hotfix e só serve para gerar a imagem do hotfix
   sobre a imagem antiga de produção; pode ser removido da branch nova.
+
+## 9. Resultado da execução de 2026-10-11
+
+| Item | Resultado |
+|---|---|
+| Imagens | `digicam-backend`, `digicam-frontend` e `digicam-verificar-placas` com a tag `hml-108045f` |
+| Dump de produção | 5 s, 32 MB compactado, em `/home/digicam/hml/dump/` |
+| Carga no HML | 25 s; 236.012 tráfegos, 749.119 saídas não identificadas, 37 migrações (igual a produção) |
+| Migração `20261006000000` | 93 s na ida, 12 s na volta (`undo`), 94 s na segunda ida |
+| Depois da migração | 38 migrações; as 749.119 saídas antigas como `arquivada`; nenhuma sem `client_id` |
+| HML no ar | `http://10.0.0.126:8081/`, health `ok`, banco `digicam_hml` |
+| API nova | login e listagens por status (`travessia`, `servico`, `sem_saida`, `saidas`) e de saídas não identificadas respondendo |
+| Independência | arquivos, rede, imagens, banco e fotos de produção inalterados; produção respondeu com o HML parado |
+| Consumo | ~550 MB de RAM com o HML ocioso; ~2 GB de disco |
+
+Os tempos de migração foram medidos no MySQL do HML, limitado a 2 CPUs e 1 GB de memória; em produção o tempo
+pode ser diferente. Não medi o efeito sobre gravações concorrentes: a migração altera a tabela `Saidas_nao_identificadas` e atualiza todas as suas linhas, então em produção convém rodá-la em horário de pouco movimento.
+
+A validação pela tela (Fase 6, itens 1, 2 e 4) depende de uma pessoa no navegador e ainda não foi feita.
+

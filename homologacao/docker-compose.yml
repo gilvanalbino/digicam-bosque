@@ -1,0 +1,96 @@
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /home/digicam/hml/fotos:/usr/share/nginx/html/images:ro
+    environment:
+      - TZ=America/Bahia
+    depends_on:
+      - frontend
+      - backend
+    mem_limit: 128m
+    restart: unless-stopped
+    logging: &log
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+
+  mysql:
+    image: mysql:8.0
+    # sem log binário: não há réplica, e as fotos em base64 da LogIdentificacao gerariam ~1 GB de log por dia
+    command: ["--skip-log-bin"]
+    environment:
+      - TZ=America/Bahia
+      - MYSQL_ROOT_PASSWORD=${HML_DB_ROOT_PASS}
+      - MYSQL_DATABASE=digicam_hml
+      - MYSQL_USER=digicam_hml
+      - MYSQL_PASSWORD=${HML_DB_PASS}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql_hml_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 1g
+    cpus: 2
+    restart: unless-stopped
+    logging: *log
+
+  backend:
+    image: digicam-backend:hml-${HML_TAG}
+    # o entrypoint da imagem tenta migrar e falha (item 2.3); a migração é feita na Fase 4
+    entrypoint: ["npm", "start"]
+    volumes:
+      - /home/digicam/hml/fotos:/digicam-fotos
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Bahia
+      - JWT_KEY=${HML_JWT_KEY}
+      - DATABASE_USER=digicam_hml
+      - DATABASE_PASS=${HML_DB_PASS}
+      - DATABASE_NAME=digicam_hml
+      - DATABASE_HOST=mysql
+      - DATABASE_DIALECT=mysql
+      - SFTP_HOST=10.0.0.126
+      - SFTP_PORT=22
+      - SFTP_USER=digicamftp
+      - SFTP_PASS=${SFTP_PASS}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 2
+    restart: unless-stopped
+    logging: *log
+
+  frontend:
+    image: digicam-frontend:hml-${HML_TAG}
+    environment:
+      - TZ=America/Bahia
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *log
+
+  verificar_placas:
+    image: digicam-verificar-placas:hml-${HML_TAG}
+    profiles: ["cameras"]          # só sobe com --profile cameras (Fase 6)
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Bahia
+      - CRON_SCHEDULE=*/5 * * * * *
+      - CLIENT_IDS=2
+      - DIGICAM_BACKEND_URL=http://backend:4000
+    depends_on:
+      - backend
+    mem_limit: 512m
+    cpus: 1
+    restart: unless-stopped
+    logging: *log
+
+volumes:
+  mysql_hml_data:
