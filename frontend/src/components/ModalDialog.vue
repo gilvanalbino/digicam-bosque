@@ -17,7 +17,8 @@
           class="flex items-start justify-center min-h-screen pt-24 text-center"
         >
           <div
-            class="bg-white rounded-lg text-left overflow-hidden shadow-xl p-8 w-1/2"
+            class="bg-white rounded-lg text-left overflow-hidden shadow-xl p-8"
+            :class="larga ? 'w-3/4 max-w-6xl' : 'w-1/2'"
             role="dialog"
             ref="modal"
             aria-modal="true"
@@ -40,8 +41,30 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 
 import useClickOutside from '../composables/useClickOutside';
 
+// Enquanto houver janela aberta, a página de trás não rola. O contador cobre mais de uma janela aberta.
+let janelasAbertas = 0;
+
+const travarRolagemDaPagina = (travar) => {
+  janelasAbertas = Math.max(0, janelasAbertas + (travar ? 1 : -1));
+  const raiz = document.documentElement;
+  if (janelasAbertas > 0) {
+    // compensa a largura da barra de rolagem que some, para o conteúdo não deslocar
+    const larguraBarra = window.innerWidth - raiz.clientWidth;
+    raiz.style.overflow = 'hidden';
+    raiz.style.paddingRight = larguraBarra > 0 ? `${larguraBarra}px` : '';
+  } else {
+    raiz.style.overflow = '';
+    raiz.style.paddingRight = '';
+  }
+};
+
 const props = {
   show: {
+    type: Boolean,
+    default: false,
+  },
+  // janela mais larga, para conteúdos com imagens lado a lado
+  larga: {
     type: Boolean,
     default: false,
   },
@@ -71,7 +94,18 @@ export default {
       }
     };
     onMounted(() => window.addEventListener('keydown', fecharComEsc));
-    onUnmounted(() => window.removeEventListener('keydown', fecharComEsc));
+    onUnmounted(() => {
+      window.removeEventListener('keydown', fecharComEsc);
+      if (showModal.value) {
+        travarRolagemDaPagina(false);
+      }
+    });
+
+    watch(showModal, (aberta, estavaAberta) => {
+      if (aberta !== estavaAberta) {
+        travarRolagemDaPagina(aberta);
+      }
+    });
 
     watch(
       () => props.show,
