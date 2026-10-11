@@ -72,6 +72,10 @@
       Saídas sem Entrada Identificada
       <span class="ml-1 py-0.5 px-2 rounded-full text-xs font-medium bg-gray-100 text-gray-900">{{ total }}</span>
     </h3>
+    <p class="mt-1 text-xs font-medium" :class="totalPlacasProximas > 0 ? 'text-blue-800' : 'text-gray-500'">
+      <span class="inline-block h-2 w-2 rounded-full bg-blue-300 mr-1" aria-hidden="true"></span>
+      {{ totalPlacasProximas }} com placa próxima de uma entrada em travessia
+    </p>
     <p class="mt-1 text-xs text-gray-500">
       Arraste uma saída até a entrada correspondente (ou a entrada até a saída), ou selecione a saída e clique em <b>Associar saída</b> no card da entrada.
     </p>
@@ -175,6 +179,11 @@ export default {
       }
       return mapa;
     });
+
+    // total de saídas com entrada parecida em travessia (os cards azuis)
+    const totalPlacasProximas = computed(
+      () => saidas.value.filter((saida) => entradasParecidas.value[saida.id] && !saida.in_whitelist).length
+    );
 
     // botão "Associar" do card: mesmo efeito de arrastar a saída até a entrada correspondente (a mais parecida)
     const associarComParecida = (saida) => {
@@ -337,6 +346,7 @@ export default {
       saidas,
       total,
       entradasParecidas,
+      totalPlacasProximas,
       associarComParecida,
       saidaSelecionada,
       arrastando,
