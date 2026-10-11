@@ -110,6 +110,13 @@ class TrafegoController {
   }
 
   /**
+   * Registra saída manual nas entradas em travessia com mais de 2 horas (somente administradores)
+   */
+  async registrarSaidaManualAntigas(loggedUserId, clientId) {
+    return await trafegoService.registrarSaidaManualAntigas(loggedUserId, clientId);
+  }
+
+  /**
    * Registra saída manual
    */
   async registrarSaidaManual(loggedUserId, trafegoId, portariaId) {

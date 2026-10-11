@@ -143,6 +143,22 @@ export const removerTrafego = (token, id) => {
   });
 };
 
+export const registrarSaidaManualAntigas = (token, client_id) => {
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: { authorization: token, 'Content-Type': 'application/json' },
+    };
+    api
+      .post(`/trafegos/client/${client_id}/saidaManualAntigas`, {}, options)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+};
+
 export const registrarSaidaManual = (token, id, portariaId) => {
   return new Promise((resolve, reject) => {
     const options = {

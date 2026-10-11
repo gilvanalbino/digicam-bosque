@@ -49,6 +49,32 @@ class SaidaNaoIdentificadaRoutes extends BaseRoute {
     };
   }
 
+  arquivarAntigas() {
+    return {
+      path: `/${this.context}/saidasNaoIdentificadas/client/{id}/arquivarAntigas`,
+      method: 'POST',
+      options: {
+        handler: async (request, h) => {
+          try {
+            return await saidaNaoIdentificadaController.arquivarAntigas(request.loggedUserId, request.params.id);
+          } catch (error) {
+            console.error(error);
+            throw error;
+          }
+        },
+        description: 'Arquiva as saídas não identificadas pendentes com mais de 2 horas',
+        notes: 'Operação em lote, permitida somente para administradores',
+        tags: ['api', 'saidasNaoIdentificadas'],
+        validate: {
+          params: Joi.object({
+            id: Joi.number().required(),
+          }),
+          headers,
+        },
+      },
+    };
+  }
+
   arquivar() {
     return {
       path: `/${this.context}/saidasNaoIdentificadas/{id}/arquivar`,

@@ -18,9 +18,17 @@
   </div>
 
   <div class="mt-5" role="tabpanel" :id="`painel-${abaAtiva}`" :aria-labelledby="`aba-${abaAtiva}`">
-    <ListaTrafego v-if="abaAtiva === 'travessia'"
-        :trafegos="trafegos.lista"
-        descricao="Veículos em travessia - entraram para cruzar o condomínio e ainda não saíram" />
+    <template v-if="abaAtiva === 'travessia'">
+      <div v-if="administrador" class="mb-3">
+        <button type="button" :disabled="travessiasAntigas === 0 || processandoLote" @click="registrarSaidaAntigas"
+            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-40 disabled:cursor-not-allowed">
+          Registrar saída manual das entradas com mais de 2h ({{ travessiasAntigas }})
+        </button>
+      </div>
+      <ListaTrafego
+          :trafegos="trafegos.lista"
+          descricao="Veículos em travessia - entraram para cruzar o condomínio e ainda não saíram" />
+    </template>
 
     <template v-else-if="abaAtiva === 'servico'">
       <div class="mb-4 flex flex-wrap items-end gap-4">
@@ -56,11 +64,13 @@
 </template>
 
 <script>
-import { computed, onMounted, reactive, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { notify } from 'notiwind';
 import { useRoute, useRouter } from 'vue-router';
 import debounce from 'lodash/debounce';
 
 import useClientes from '../composables/useClientes';
+import useLogin from '../composables/useLogin';
 import useTrafegos from '../composables/useTrafegos';
 import useMoradores from '../composables/useMoradores';
 
@@ -126,6 +136,33 @@ export default {
       useTrafegos.actions.paginarServico(page);
     };
 
+    // ---------- saída manual em lote (somente administradores)
+    const DUAS_HORAS_MS = 1000 * 60 * 60 * 2;
+    const administrador = computed(() => {
+      const user = useLogin.state.auth.user;
+      return !!user && !!(user.admin || user.admin_client);
+    });
+    const travessiasAntigas = computed(
+      () => trafegos.value.lista.filter((t) => !t.in_whitelist && Date.now() - new Date(t.dataEntrada).getTime() > DUAS_HORAS_MS).length
+    );
+    const processandoLote = ref(false);
+
+    const registrarSaidaAntigas = async () => {
+      const confirma = confirm(
+        `Registrar saída manual de ${travessiasAntigas.value} veículo(s) em travessia há mais de 2 horas?`
+      );
+      if (!confirma) return;
+      processandoLote.value = true;
+      try {
+        const quantidade = await useTrafegos.actions.registrarSaidaManualAntigas();
+        notify({ group: 'success', title: 'Sucesso', text: `Saída manual registrada para ${quantidade} veículo(s)` }, 4000);
+      } catch (error) {
+        notify({ group: 'error', title: 'Erro', text: error.message || 'Erro registrando as saídas' }, 4000);
+      } finally {
+        processandoLote.value = false;
+      }
+    };
+
     return {
       abas,
       abaAtiva,
@@ -134,6 +171,10 @@ export default {
       filtroServico,
       limparFiltrosServico,
       paginarServico,
+      administrador,
+      travessiasAntigas,
+      processandoLote,
+      registrarSaidaAntigas,
     };
   },
 };

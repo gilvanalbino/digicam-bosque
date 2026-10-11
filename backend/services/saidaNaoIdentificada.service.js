@@ -90,6 +90,39 @@ const listarPorCliente = async (loggedUserId, clientId, { status = 'pendente', p
   return { rows: saidas, total: count, page: page || 1, pageSize: params.limit || count };
 };
 
+// o arquivamento em lote vale para saídas pendentes com mais de 2 horas
+const IDADE_MINIMA_LOTE_MS = 1000 * 60 * 60 * 2;
+
+/**
+ * Arquiva, de uma vez, todas as saídas pendentes do cliente com mais de 2 horas.
+ * Só para administradores (do sistema ou do próprio cliente).
+ */
+const arquivarAntigas = async (loggedUserId, clientId) => {
+  const loggedUser = await User.findByPk(loggedUserId);
+  if (!loggedUser) {
+    throw Error('Informar usuário logado');
+  }
+  if (!(loggedUser.admin || (loggedUser.admin_client && loggedUser.client_id === clientId))) {
+    return { status: 'ERROR', message: 'Operação permitida somente para administradores' };
+  }
+  const [quantidade] = await SaidaNaoIdentificada.update(
+    {
+      status: 'arquivada',
+      motivo_arquivamento: 'Arquivamento em lote: saída com mais de 2 horas',
+      resolvido_em: new Date(),
+      user_resolucao: loggedUserId,
+    },
+    {
+      where: {
+        client_id: clientId,
+        status: 'pendente',
+        data: { [Op.lt]: new Date(Date.now() - IDADE_MINIMA_LOTE_MS) },
+      },
+    }
+  );
+  return { status: 'OK', quantidade };
+};
+
 /**
  * Arquiva a saída sem associá-la a nenhuma entrada. Não gera registro de tráfego.
  */
@@ -172,6 +205,7 @@ module.exports = {
   insert,
   getByIdentificadorPlaca,
   listarPorCliente,
+  arquivarAntigas,
   arquivar,
   associar,
 };

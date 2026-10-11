@@ -229,6 +229,34 @@ class TrafegoRoutes extends BaseRoute {
     };
   }
 
+  registrarSaidaManualAntigas() {
+    return {
+      path: `/${this.context}/trafegos/client/{id}/saidaManualAntigas`,
+      method: 'POST',
+      options: {
+        handler: async (request, h) => {
+          try {
+            return await trafegoController.registrarSaidaManualAntigas(request.loggedUserId, request.params.id);
+          } catch (error) {
+            console.error(error);
+            throw error;
+          }
+        },
+        description: 'Registra saída manual nas entradas em travessia com mais de 2 horas',
+        notes: 'Operação em lote, permitida somente para administradores',
+        tags: ['api', 'trafegos'],
+        validate: {
+          params: Joi.object({
+            id: Joi.number().required(),
+          }),
+          headers: Joi.object({
+            authorization: Joi.string().required(),
+          }).unknown(),
+        },
+      },
+    };
+  }
+
   registrarSaidaManual() {
     return {
       path: `/${this.context}/trafegos/saidaManual/{id}/{portariaId}`,

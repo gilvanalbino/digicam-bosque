@@ -18,6 +18,22 @@ export const listarSaidasNaoIdentificadas = (token, client_id, filtros = {}) => 
   });
 };
 
+export const arquivarSaidasNaoIdentificadasAntigas = (token, client_id) => {
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: { authorization: token, 'Content-Type': 'application/json' },
+    };
+    api
+      .post(`/saidasNaoIdentificadas/client/${client_id}/arquivarAntigas`, {}, options)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+};
+
 export const arquivarSaidaNaoIdentificada = (token, id, motivo) => {
   return new Promise((resolve, reject) => {
     const options = {

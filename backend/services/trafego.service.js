@@ -120,6 +120,36 @@ const listarPorStatus = async (loggedUserId, clientId, filtros) => {
   return { rows, total: count, page: page || 1, pageSize: params.limit || count };
 };
 
+// operações em lote da tela de tráfego valem para registros com mais de 2 horas
+const IDADE_MINIMA_LOTE_MS = 1000 * 60 * 60 * 2;
+
+/**
+ * Registra saída manual, de uma vez, em todas as entradas "cruzar condomínio" sem saída com mais de 2 horas
+ * que aparecem na aba Em Travessia. Só para administradores (do sistema ou do próprio cliente).
+ */
+const registrarSaidaManualAntigas = async (loggedUserId, clientId) => {
+  const loggedUser = await User.findByPk(loggedUserId);
+  if (!loggedUser) {
+    throw Error('Informar usuário logado');
+  }
+  if (!(loggedUser.admin || (loggedUser.admin_client && loggedUser.client_id === clientId))) {
+    return { status: 'ERROR', message: 'Operação permitida somente para administradores' };
+  }
+  const [quantidade] = await Trafego.update(
+    { dataSaida: new Date(), user_reg_saida: loggedUserId, saida_automatica: false },
+    {
+      where: {
+        client_id: clientId,
+        destino: 'cruzar',
+        dataSaida: null,
+        in_whitelist: { [Op.not]: true },
+        dataEntrada: { [Op.lt]: new Date(Date.now() - IDADE_MINIMA_LOTE_MS) },
+      },
+    }
+  );
+  return { status: 'OK', quantidade };
+};
+
 /**
  * Grava os dados de saída em um tráfego — usado pela saída automática (câmera)
  * e pela associação manual de saídas não identificadas.
@@ -382,6 +412,7 @@ const removeBlackList = async (veiculoId) => {
 };
 
 module.exports = {
+  registrarSaidaManualAntigas,
   listarSemSaida,
   listarComSaida,
   listarPorStatus,

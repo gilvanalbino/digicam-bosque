@@ -192,6 +192,35 @@ sql("DELETE FROM LogIdentificacao WHERE placa IN ('FWD1A11','UNK1A11','SEM1A11',
 sql("DELETE FROM Trafegos WHERE placa='ENT8Z88'");
 sql("DELETE FROM Saidas_nao_identificadas WHERE placa IN ('FWD1A11','UNK1A11','SEM1A11')");
 
+// ---------------- operações em lote para registros com mais de 2 horas (somente administradores)
+sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,in_whitelist,createdAt,updatedAt) VALUES
+ (50,'ANT2H01',UTC_TIMESTAMP()-INTERVAL 3 HOUR,NULL,'cruzar',1,1,NULL,NOW(),NOW()),
+ (51,'ANT2H02',UTC_TIMESTAMP()-INTERVAL 3 HOUR,NULL,'cruzar',1,1,1,NOW(),NOW()),
+ (52,'ANT2H03',UTC_TIMESTAMP()-INTERVAL 3 HOUR,NULL,'servico',1,1,NULL,NOW(),NOW()),
+ (53,'ANT2H04',UTC_TIMESTAMP()-INTERVAL 3 HOUR,NULL,'cruzar',2,2,NULL,NOW(),NOW())`);
+sql(`INSERT INTO Saidas_nao_identificadas (id,identificador_placa,placa,data,camera_id,client_id,status,createdAt,updatedAt) VALUES
+ (30,'s-30','SAI2H01',UTC_TIMESTAMP()-INTERVAL 3 HOUR,2,1,'pendente',UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+ (31,'s-31','SAI2H02',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,2,1,'pendente',UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+ (32,'s-32','SAI2H03',UTC_TIMESTAMP()-INTERVAL 3 HOUR,3,2,'pendente',UTC_TIMESTAMP(),UTC_TIMESTAMP())`);
+r = await op('POST', '/trafegos/client/1/saidaManualAntigas', {});
+ok(r.status === 'ERROR' && /administradores/.test(r.message), 'saída em lote: operador comum não pode', r);
+r = await op('POST', '/saidasNaoIdentificadas/client/1/arquivarAntigas', {});
+ok(r.status === 'ERROR' && /administradores/.test(r.message), 'arquivamento em lote: operador comum não pode', r);
+ok(sql('SELECT COUNT(*) FROM Trafegos WHERE id IN (50,51,52,53) AND dataSaida IS NOT NULL') === '0', 'e nada é alterado na tentativa do operador');
+r = await admin('POST', '/trafegos/client/1/saidaManualAntigas', {});
+ok(r.status === 'OK' && r.quantidade === 1, 'saída em lote: só a entrada cruzar com mais de 2 horas do cliente', r);
+const lote = sql('SELECT id, dataSaida IS NOT NULL, IFNULL(saida_automatica,-1) FROM Trafegos WHERE id IN (50,51,52,53) ORDER BY id');
+ok(lote === '50\t1\t0\n51\t0\t-1\n52\t0\t-1\n53\t0\t-1', 'green list, serviço e outro cliente não são tocados', lote);
+const recentes = sql("SELECT COUNT(*) FROM Trafegos WHERE dataEntrada > UTC_TIMESTAMP() - INTERVAL 2 HOUR AND user_reg_saida IS NOT NULL AND dataSaida > UTC_TIMESTAMP() - INTERVAL 5 SECOND");
+ok(recentes === '0', 'entradas com menos de 2 horas não recebem saída em lote', recentes);
+r = await admin('POST', '/saidasNaoIdentificadas/client/1/arquivarAntigas', {});
+ok(r.status === 'OK' && r.quantidade === 1, 'arquivamento em lote: só a saída pendente com mais de 2 horas do cliente', r);
+const arq = sql('SELECT id, status FROM Saidas_nao_identificadas WHERE id IN (30,31,32) ORDER BY id');
+ok(arq === '30\tarquivada\n31\tpendente\n32\tpendente', 'saída recente e de outro cliente continuam pendentes', arq);
+ok(/lote/.test(sql('SELECT motivo_arquivamento FROM Saidas_nao_identificadas WHERE id=30')), 'motivo do arquivamento em lote é registrado');
+sql('DELETE FROM Trafegos WHERE id IN (50,51,52,53)');
+sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (30,31,32)');
+
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
 r = await op('GET', '/trafegos/client/1?status=servico');

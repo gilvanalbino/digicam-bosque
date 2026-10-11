@@ -79,6 +79,10 @@
     <p class="mt-1 text-xs text-gray-500">
       Arraste uma saída até a entrada correspondente (ou a entrada até a saída), ou selecione a saída e clique em <b>Associar saída</b> no card da entrada.
     </p>
+    <button v-if="administrador" type="button" :disabled="saidasAntigas === 0 || processando" @click="arquivarAntigas"
+        class="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">
+      Arquivar saídas com mais de 2h ({{ saidasAntigas }})
+    </button>
     <p v-if="saidaSelecionada" class="mt-2 text-xs text-indigo-700">
       Saída <b>{{ saidaSelecionada.placa }}</b> selecionada.
       <a href="#" class="text-gray-500 underline" @click.prevent="limparSelecao">Limpar seleção</a>
@@ -141,6 +145,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { notify } from 'notiwind';
 
+import useLogin from '../composables/useLogin';
 import usePortarias from '../composables/usePortarias';
 import useTrafegos from '../composables/useTrafegos';
 import useSaidasNaoIdentificadas, { podeAssociar } from '../composables/useSaidasNaoIdentificadas';
@@ -304,6 +309,30 @@ export default {
       abrirModal(showModalFoto);
     };
 
+    // ---------- arquivamento em lote (somente administradores)
+    const DUAS_HORAS_MS = 1000 * 60 * 60 * 2;
+    const administrador = computed(() => {
+      const user = useLogin.state.auth.user;
+      return !!user && !!(user.admin || user.admin_client);
+    });
+    const saidasAntigas = computed(
+      () => saidas.value.filter((saida) => Date.now() - new Date(saida.data).getTime() > DUAS_HORAS_MS).length
+    );
+
+    const arquivarAntigas = async () => {
+      const confirma = confirm(`Arquivar ${saidasAntigas.value} saída(s) sem entrada com mais de 2 horas?`);
+      if (!confirma) return;
+      processando.value = true;
+      try {
+        const quantidade = await useSaidasNaoIdentificadas.actions.arquivarAntigas();
+        notify({ group: 'success', title: 'Sucesso', text: `${quantidade} saída(s) arquivada(s)` }, 4000);
+      } catch (error) {
+        notify({ group: 'error', title: 'Erro', text: error.message || 'Erro arquivando as saídas' }, 4000);
+      } finally {
+        processando.value = false;
+      }
+    };
+
     const saidaArquivar = ref({});
     const motivo = ref('');
     const showModalArquivar = ref(false);
@@ -368,6 +397,9 @@ export default {
       saidaFoto,
       showModalFoto,
       abrirFoto,
+      administrador,
+      saidasAntigas,
+      arquivarAntigas,
       saidaArquivar,
       campoMotivo,
       motivo,

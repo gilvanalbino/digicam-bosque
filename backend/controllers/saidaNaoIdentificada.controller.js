@@ -9,6 +9,13 @@ class SaidaNaoIdentificadaController {
   }
 
   /**
+   * Arquiva as saídas pendentes com mais de 2 horas (somente administradores)
+   */
+  async arquivarAntigas(loggedUserId, clientId) {
+    return await saidaNaoIdentificadaService.arquivarAntigas(loggedUserId, clientId);
+  }
+
+  /**
    * Arquiva uma saída sem associá-la a uma entrada
    */
   async arquivar(loggedUserId, id, motivo) {

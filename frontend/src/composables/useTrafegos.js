@@ -2,7 +2,12 @@
 
 import { reactive, readonly } from 'vue';
 import { cloneDeep } from 'lodash';
-import { listarTrafegosPorStatus, removerTrafego, registrarSaidaManual } from '../database/dbTrafegos';
+import {
+  listarTrafegosPorStatus,
+  removerTrafego,
+  registrarSaidaManual,
+  registrarSaidaManualAntigas,
+} from '../database/dbTrafegos';
 
 import useLogin from './useLogin';
 import useClientes from './useClientes';
@@ -192,6 +197,17 @@ const actions = {
         reject(error);
       }
     });
+  },
+
+  // saída manual em lote das entradas em travessia com mais de 2 horas (somente administradores)
+  async registrarSaidaManualAntigas() {
+    const ret = await registrarSaidaManualAntigas(useLogin.state.auth.token, clientId());
+    if (!ret || ret.status !== 'OK') {
+      throw new Error((ret && ret.message) || 'Erro ao processar a solicitação');
+    }
+    await actions.carregarTrafegos(clientId());
+    actions.carregarHistorico().catch(() => {});
+    return ret.quantidade;
   },
 
   // remove localmente um tráfego que recebeu saída (ex.: associação manual)

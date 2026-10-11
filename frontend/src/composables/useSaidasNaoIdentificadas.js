@@ -3,6 +3,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import {
   listarSaidasNaoIdentificadas,
   arquivarSaidaNaoIdentificada,
+  arquivarSaidasNaoIdentificadasAntigas,
   associarSaidaNaoIdentificada,
 } from '../database/dbSaidasNaoIdentificadas';
 
@@ -98,6 +99,16 @@ const actions = {
       verificarRetorno(await arquivarSaidaNaoIdentificada(useLogin.state.auth.token, id, motivo));
     } finally {
       // resolvida aqui ou por outro operador: sai da fila de qualquer forma
+      await actions.carregarSaidas();
+    }
+  },
+
+  // arquivamento em lote das saídas pendentes com mais de 2 horas (somente administradores)
+  async arquivarAntigas() {
+    try {
+      const ret = verificarRetorno(await arquivarSaidasNaoIdentificadasAntigas(useLogin.state.auth.token, clientId()));
+      return ret.quantidade;
+    } finally {
       await actions.carregarSaidas();
     }
   },
