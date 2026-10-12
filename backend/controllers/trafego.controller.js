@@ -110,6 +110,13 @@ class TrafegoController {
   }
 
   /**
+   * Eventos de entrada e saída de um dia, para a linha do tempo
+   */
+  async linhaDoTempo(loggedUserId, clientId, dia) {
+    return await trafegoService.linhaDoTempo(loggedUserId, clientId, dia);
+  }
+
+  /**
    * Registra saída manual nas entradas em travessia com mais de 2 horas (somente administradores)
    */
   async registrarSaidaManualAntigas(loggedUserId, clientId) {

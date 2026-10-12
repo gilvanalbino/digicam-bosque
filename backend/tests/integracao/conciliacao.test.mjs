@@ -221,6 +221,17 @@ ok(/lote/.test(sql('SELECT motivo_arquivamento FROM Saidas_nao_identificadas WHE
 sql('DELETE FROM Trafegos WHERE id IN (50,51,52,53)');
 sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (30,31,32)');
 
+// ---------------- linha do tempo do dia
+r = await op('GET', '/trafegos/client/1/linha-do-tempo');
+ok(/^\d{4}-\d{2}-\d{2}$/.test(r.dia) && Array.isArray(r.trafegos) && Array.isArray(r.saidasSemEntrada), 'linha do tempo: formato da resposta', r);
+ok(!r.trafegos.find((t) => t.id === 6 || t.id === 7), 'linha do tempo: fora o tráfego de dias anteriores e o de outro cliente', r.trafegos.map((t) => t.id));
+ok(r.trafegos.length > 0 && r.trafegos.every((t) => t.dataEntrada), 'linha do tempo: traz os tráfegos do dia', r.trafegos.length);
+ok(r.saidasSemEntrada.every((s) => s.status !== 'associada'), 'linha do tempo: saídas associadas não aparecem como saída sem entrada', r.saidasSemEntrada);
+r = await op('GET', '/trafegos/client/1/linha-do-tempo?dia=2020-01-01');
+ok(r.dia === '2020-01-01' && r.trafegos.length === 0 && r.saidasSemEntrada.length === 0, 'linha do tempo: dia sem movimento vem vazio', r);
+r = await op('GET', '/trafegos/client/2/linha-do-tempo');
+ok(r.trafegos.length === 0 && r.saidasSemEntrada.length === 0, 'linha do tempo: operador não vê outro cliente', r);
+
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
 r = await op('GET', '/trafegos/client/1?status=servico');

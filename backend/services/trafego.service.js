@@ -2,7 +2,7 @@
 
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
-const { Trafego, User } = require('../models');
+const { Trafego, User, SaidaNaoIdentificada, Camera } = require('../models');
 const TrafegoRoutes = require('../routes/trafego.route');
 
 const listarSemSaida = async (loggedUserId, clientId) => {
@@ -118,6 +118,39 @@ const listarPorStatus = async (loggedUserId, clientId, filtros) => {
 
   const { rows, count } = await Trafego.findAndCountAll(params);
   return { rows, total: count, page: page || 1, pageSize: params.limit || count };
+};
+
+/**
+ * Eventos de um dia para a linha do tempo: tráfegos com entrada ou saída no dia e saídas sem entrada
+ * identificada do dia (pendentes e arquivadas; as associadas já estão no tráfego correspondente).
+ * "dia" no formato AAAA-MM-DD; sem ele, vale o dia corrente.
+ */
+const linhaDoTempo = async (loggedUserId, clientId, dia) => {
+  const loggedUser = await User.findByPk(loggedUserId);
+  if (!loggedUser) {
+    throw Error('Informar usuário logado');
+  }
+  const base = dia ? dayjs(dia) : dayjs();
+  const inicio = base.startOf('day').toDate();
+  const fim = base.endOf('day').toDate();
+  if (!(loggedUser.admin || (loggedUser.client_id && loggedUser.client_id === clientId))) {
+    return { dia: base.format('YYYY-MM-DD'), trafegos: [], saidasSemEntrada: [] };
+  }
+  const noDia = { [Op.between]: [inicio, fim] };
+  const trafegos = await Trafego.findAll({
+    attributes: [
+      'id', 'placa', 'placa_saida', 'nome', 'destino', 'dataEntrada', 'dataSaida', 'portaria_entrada_id',
+      'portaria_saida_id', 'saida_automatica', 'identificador_placa_saida', 'in_whitelist', 'in_blacklist', 'imagem', 'imagem_thumb',
+      'imagem_placa', 'imagem_saida', 'imagem_saida_thumb', 'imagem_saida_placa',
+    ],
+    where: { client_id: clientId, [Op.or]: [{ dataEntrada: noDia }, { dataSaida: noDia }] },
+  });
+  const saidasSemEntrada = await SaidaNaoIdentificada.findAll({
+    attributes: ['id', 'placa', 'data', 'status', 'imagem_carro', 'imagem_carro_thumb', 'imagem_placa'],
+    where: { client_id: clientId, data: noDia, status: { [Op.in]: ['pendente', 'arquivada'] } },
+    include: [{ model: Camera, attributes: ['id', 'nome', 'portaria_id'] }],
+  });
+  return { dia: base.format('YYYY-MM-DD'), trafegos, saidasSemEntrada };
 };
 
 // operações em lote da tela de tráfego valem para registros com mais de 2 horas
@@ -412,6 +445,7 @@ const removeBlackList = async (veiculoId) => {
 };
 
 module.exports = {
+  linhaDoTempo,
   registrarSaidaManualAntigas,
   listarSemSaida,
   listarComSaida,

@@ -229,6 +229,32 @@ class TrafegoRoutes extends BaseRoute {
     };
   }
 
+  linhaDoTempo() {
+    return {
+      path: `/${this.context}/trafegos/client/{id}/linha-do-tempo`,
+      method: 'GET',
+      options: {
+        handler: async (request, h) => {
+          return trafegoController.linhaDoTempo(request.loggedUserId, request.params.id, request.query.dia);
+        },
+        description: 'Obtem as entradas e saídas de um dia para a linha do tempo',
+        notes: 'Retorna { dia, trafegos, saidasSemEntrada }. Sem o parâmetro "dia" (AAAA-MM-DD), vale o dia corrente.',
+        tags: ['api', 'trafegos'],
+        validate: {
+          params: Joi.object({
+            id: Joi.number().required(),
+          }),
+          query: Joi.object({
+            dia: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+          }),
+          headers: Joi.object({
+            authorization: Joi.string().required(),
+          }).unknown(),
+        },
+      },
+    };
+  }
+
   registrarSaidaManualAntigas() {
     return {
       path: `/${this.context}/trafegos/client/{id}/saidaManualAntigas`,
