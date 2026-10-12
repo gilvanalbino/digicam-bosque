@@ -106,8 +106,9 @@
             :class="faixaDestacada === linha.chave ? 'bg-indigo-50 ring-2 ring-indigo-300 rounded-lg' : ''">
           <!-- Informações da entrada, à esquerda da linha de entradas -->
           <div class="flex justify-end py-1 pr-3">
-            <div v-if="linha.entrada" class="flex items-center gap-3 rounded-lg border border-gray-300 px-2 py-1 shadow-sm cursor-pointer hover:border-gray-400"
-                :class="linha.entrada.greenList ? 'white-list' : 'bg-white'" @click="abrirFotos(linha)">
+            <div v-if="linha.entrada" class="flex items-center gap-3 rounded-lg border px-2 py-1 shadow-sm cursor-pointer hover:border-gray-400"
+                :class="linha.placasDiferentes ? 'bg-blue-100 border-blue-300' : linha.entrada.greenList ? 'white-list border-gray-300' : 'bg-white border-gray-300'"
+                :title="linha.placasDiferentes ? 'Placa da saída diferente da placa da entrada' : null" @click="abrirFotos(linha)">
               <div class="min-w-0 text-right">
                 <p class="text-sm font-bold text-gray-900">{{ linha.entrada.placa }}</p>
                 <p class="text-xs text-green-700">
@@ -134,7 +135,8 @@
           <div class="relative flex items-center justify-center">
             <template v-if="linha.entrada && linha.saida">
               <span class="absolute inset-x-0 top-1/2 -mt-px h-0.5 bg-gray-400"></span>
-              <span class="relative rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700" title="Permanência">
+              <span class="relative rounded-full border px-2 py-0.5 text-xs font-medium"
+                  :class="linha.placasDiferentes ? 'border-blue-300 bg-blue-100 text-blue-800' : 'border-gray-300 bg-white text-gray-700'" title="Permanência">
                 {{ linha.permanencia }}
               </span>
             </template>
@@ -148,8 +150,10 @@
 
           <!-- Informações da saída, à direita da linha de saídas -->
           <div class="flex justify-start py-1 pl-3">
-            <div v-if="linha.saida" class="flex items-center gap-3 rounded-lg border border-gray-300 px-2 py-1 shadow-sm cursor-pointer hover:border-gray-400"
-                :class="linha.saida.greenList ? 'white-list' : linha.saida.arquivada ? 'bg-gray-100' : 'bg-white'" @click="abrirFotos(linha)">
+            <div v-if="linha.saida" class="flex items-center gap-3 rounded-lg border px-2 py-1 shadow-sm cursor-pointer hover:border-gray-400"
+                :class="linha.placasDiferentes ? 'bg-blue-100 border-blue-300'
+                          : linha.saida.greenList ? 'white-list border-gray-300' : linha.saida.arquivada ? 'bg-gray-100 border-gray-300' : 'bg-white border-gray-300'"
+                :title="linha.placasDiferentes ? 'Placa da saída diferente da placa da entrada' : null" @click="abrirFotos(linha)">
               <img v-if="linha.saida.miniatura" class="h-12 w-12 flex-shrink-0 rounded-lg" :src="`/images${linha.saida.miniatura}`" alt="Foto da saída" loading="lazy" />
               <div v-else class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">sem foto</div>
               <div class="min-w-0">
@@ -274,6 +278,8 @@ export default {
               }
             : null,
           permanencia: temSaida ? calcularPermanencia(trafego.dataEntrada, trafego.dataSaida) : '',
+          // saída associada a uma entrada de placa parecida, não igual (pelo sistema ou pelo operador): em azul
+          placasDiferentes: temSaida && !!trafego.placa_saida && trafego.placa_saida !== trafego.placa,
         };
       });
       const dasSaidas = saidasSemEntrada.value.map((saida) => ({
@@ -302,6 +308,7 @@ export default {
       { id: 'completo', titulo: 'Entrou e saiu', total: linhas.value.filter((l) => l.tipo === 'completo').length },
       { id: 'entrada', titulo: 'Entrada sem saída', total: linhas.value.filter((l) => l.tipo === 'entrada').length },
       { id: 'saida', titulo: 'Saída sem entrada', total: linhas.value.filter((l) => l.tipo === 'saida').length },
+      { id: 'placasDiferentes', titulo: 'Placas diferentes', total: linhas.value.filter((l) => l.placasDiferentes).length },
     ]);
 
     // aplica os filtros e marca a primeira faixa de cada hora, para o separador
@@ -309,7 +316,11 @@ export default {
       const texto = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       let horaAnterior = null;
       return linhas.value
-        .filter((linha) => filtro.value === 'todos' || linha.tipo === filtro.value)
+        .filter(
+          (linha) =>
+            filtro.value === 'todos' ||
+            (filtro.value === 'placasDiferentes' ? linha.placasDiferentes : linha.tipo === filtro.value)
+        )
         .filter(
           (linha) =>
             !texto ||
