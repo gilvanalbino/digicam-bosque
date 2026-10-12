@@ -1,10 +1,9 @@
 import { reactive, readonly } from 'vue';
 import cloneDeep from 'lodash/cloneDeep';
 import {
-  listarSaidasNaoIdentificadas,
-  arquivarSaidaNaoIdentificada,
-  arquivarSaidasNaoIdentificadasAntigas,
+  listarSaidasRecentes,
   associarSaidaNaoIdentificada,
+  desassociarSaida,
 } from '../database/dbSaidasNaoIdentificadas';
 
 import useLogin from './useLogin';
@@ -12,9 +11,11 @@ import useClientes from './useClientes';
 import useTrafegos from './useTrafegos';
 
 const initialState = {
+  // saídas da última hora: as associadas a uma entrada (campo "entrada") e as pendentes, sem entrada identificada
   saidas: {
     lista: [],
     total: 0,
+    pendentes: 0,
   },
   // interação entre o painel de saídas e os cards de entrada (seleção, arraste e pedido de associação)
   interacao: {
@@ -49,24 +50,21 @@ const verificarRetorno = (ret) => {
 const actions = {
   async carregarSaidas(client_id = clientId()) {
     if (!client_id) return;
-    const ret = await listarSaidasNaoIdentificadas(useLogin.state.auth.token, client_id, {
-      status: 'pendente',
-      page: 1,
-      pageSize: 200,
-    });
+    const ret = await listarSaidasRecentes(useLogin.state.auth.token, client_id);
     verificarRetorno(ret);
     _state.saidas.lista = ret.rows;
     _state.saidas.total = ret.total;
-    // a saída selecionada pode ter sido resolvida por outro operador
+    _state.saidas.pendentes = ret.pendentes;
+    // a saída selecionada pode ter sido resolvida por outro operador ou ter saído da última hora
     const selecionada = _state.interacao.selecionada;
     if (selecionada) {
-      _state.interacao.selecionada = ret.rows.find((s) => s.id === selecionada.id) || null;
+      _state.interacao.selecionada = ret.rows.find((s) => s.chave === selecionada.chave) || null;
     }
   },
 
   selecionar(saida) {
     const selecionada = _state.interacao.selecionada;
-    _state.interacao.selecionada = selecionada && selecionada.id === saida.id ? null : saida;
+    _state.interacao.selecionada = selecionada && selecionada.chave === saida.chave ? null : saida;
   },
 
   limparSelecao() {
@@ -94,29 +92,20 @@ const actions = {
     _state.interacao.pedido = { entrada, saida };
   },
 
-  async arquivar(id, motivo) {
-    try {
-      verificarRetorno(await arquivarSaidaNaoIdentificada(useLogin.state.auth.token, id, motivo));
-    } finally {
-      // resolvida aqui ou por outro operador: sai da fila de qualquer forma
-      await actions.carregarSaidas();
-    }
-  },
-
-  // arquivamento em lote das saídas pendentes com mais de 2 horas (somente administradores)
-  async arquivarAntigas() {
-    try {
-      const ret = verificarRetorno(await arquivarSaidasNaoIdentificadasAntigas(useLogin.state.auth.token, clientId()));
-      return ret.quantidade;
-    } finally {
-      await actions.carregarSaidas();
-    }
-  },
-
   async associar(id, trafegoId) {
     try {
       verificarRetorno(await associarSaidaNaoIdentificada(useLogin.state.auth.token, id, trafegoId));
       useTrafegos.actions.removerDasListasSemSaida(trafegoId);
+    } finally {
+      await actions.carregarSaidas();
+      useTrafegos.actions.carregarTrafegos(clientId()).catch(() => {});
+    }
+  },
+
+  // desfaz a associação automática por placa próxima: a entrada volta para a travessia e a saída fica pendente
+  async desassociar(saidaId) {
+    try {
+      verificarRetorno(await desassociarSaida(useLogin.state.auth.token, saidaId));
     } finally {
       await actions.carregarSaidas();
       useTrafegos.actions.carregarTrafegos(clientId()).catch(() => {});
@@ -139,13 +128,13 @@ setInterval(async () => {
     try {
       await actions.carregarSaidas();
     } catch (error) {
-      console.log('Erro recarregando saídas não identificadas', error);
+      console.log('Erro recarregando as saídas', error);
     }
   }
 }, 5000);
 
-// uma saída só pode ser associada a uma entrada que aconteceu antes dela
+// só uma saída ainda sem entrada pode ser associada, e a uma entrada que aconteceu antes dela
 export const podeAssociar = (entrada, saida) =>
-  !!entrada && !!saida && new Date(saida.data) >= new Date(entrada.dataEntrada);
+  !!entrada && !!saida && saida.status === 'pendente' && new Date(saida.data) >= new Date(entrada.dataEntrada);
 
 export default { state: state, actions };

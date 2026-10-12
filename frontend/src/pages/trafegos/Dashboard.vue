@@ -13,9 +13,9 @@
         <AbasTrafego/>
       </div>
 
-      <!-- Saídas sem entrada identificada: só com a aba Em Travessia selecionada -->
+      <!-- Saídas da última hora: só com a aba Em Travessia selecionada -->
       <aside v-if="abaTravessia" class="mt-8 lg:mt-0 lg:w-72 xl:w-80 lg:flex-shrink-0">
-        <SaidasSemEntrada/>
+        <PainelSaidas/>
       </aside>
     </div>
   </Main>
@@ -27,13 +27,13 @@ import { useRouter } from 'vue-router';
 
 import Main from '../layout/Main.vue'
 import AbasTrafego from '../../components/AbasTrafego.vue';
-import SaidasSemEntrada from '../../components/SaidasSemEntrada.vue';
+import PainelSaidas from '../../components/PainelSaidas.vue';
 
 import usePortarias from '../../composables/usePortarias'
 import useTrafegos from '../../composables/useTrafegos'
 
 export default {
-  components: {Main, AbasTrafego, SaidasSemEntrada},
+  components: {Main, AbasTrafego, PainelSaidas},
   setup() {
 
     const portariaSelecionada = computed(() => usePortarias.state.portarias.selecionada);

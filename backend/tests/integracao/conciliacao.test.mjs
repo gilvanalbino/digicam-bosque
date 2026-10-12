@@ -221,6 +221,97 @@ ok(/lote/.test(sql('SELECT motivo_arquivamento FROM Saidas_nao_identificadas WHE
 sql('DELETE FROM Trafegos WHERE id IN (50,51,52,53)');
 sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (30,31,32)');
 
+// ---------------- painel "Saídas": saídas da última hora, com e sem entrada
+sql(`INSERT INTO Trafegos (id,placa,placa_saida,identificador_placa_saida,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,portaria_saida_id,createdAt,updatedAt) VALUES
+ (60,'REC1H01','REC1H01','r-60',UTC_TIMESTAMP()-INTERVAL 20 MINUTE,UTC_TIMESTAMP()-INTERVAL 15 MINUTE,'cruzar',1,1,1,NOW(),NOW()),
+ (61,'REC1H02','REC1H02','r-61',UTC_TIMESTAMP()-INTERVAL 3 HOUR,UTC_TIMESTAMP()-INTERVAL 2 HOUR,'cruzar',1,1,1,NOW(),NOW()),
+ (62,'REC1H03',NULL,NULL,UTC_TIMESTAMP()-INTERVAL 20 MINUTE,UTC_TIMESTAMP()-INTERVAL 5 MINUTE,'cruzar',1,1,NULL,NOW(),NOW()),
+ (63,'REC1H04','REC1H04','r-63',UTC_TIMESTAMP()-INTERVAL 20 MINUTE,UTC_TIMESTAMP()-INTERVAL 5 MINUTE,'cruzar',2,2,2,NOW(),NOW())`);
+sql(`INSERT INTO Saidas_nao_identificadas (id,identificador_placa,placa,data,camera_id,client_id,status,createdAt,updatedAt) VALUES
+ (40,'s-40','REC1H05',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,2,1,'pendente',UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+ (41,'s-41','REC1H06',UTC_TIMESTAMP()-INTERVAL 3 HOUR,2,1,'pendente',UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+ (42,'s-42','REC1H07',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,2,1,'arquivada',UTC_TIMESTAMP(),UTC_TIMESTAMP())`);
+r = await op('GET', '/saidasNaoIdentificadas/client/1/recentes');
+const chaves = r.rows.map((s) => s.chave);
+ok(chaves.includes('t60') && chaves.includes('s40'), 'saídas recentes: traz a saída associada e a pendente da última hora', chaves);
+ok(chaves.indexOf('s40') < chaves.indexOf('t60'), 'saídas recentes: a mais recente vem primeiro', chaves);
+ok(!chaves.includes('t61') && !chaves.includes('s41'), 'saídas recentes: fora as que têm mais de uma hora', chaves);
+ok(!chaves.includes('t62'), 'saídas recentes: baixa manual (sem leitura de câmera) fica fora', chaves);
+ok(!chaves.includes('s42') && !chaves.includes('t63'), 'saídas recentes: fora a arquivada e a de outro cliente', chaves);
+const associada = r.rows.find((s) => s.chave === 't60');
+ok(associada.status === 'associada' && associada.entrada.id === 60 && associada.entrada.placa === 'REC1H01' && associada.entrada.dataEntrada && associada.portaria_id === 1,
+  'saídas recentes: a associada traz a entrada correspondente', associada);
+const pendente = r.rows.find((s) => s.chave === 's40');
+ok(pendente.status === 'pendente' && pendente.id === 40 && pendente.entrada === null, 'saídas recentes: a pendente vem sem entrada', pendente);
+ok(r.total === r.rows.length && r.pendentes === r.rows.filter((s) => s.status === 'pendente').length, 'saídas recentes: totais conferem', r);
+r = await op('GET', '/saidasNaoIdentificadas/client/2/recentes');
+ok(r.total === 0 && r.rows.length === 0, 'saídas recentes: operador não vê outro cliente', r);
+sql('DELETE FROM Trafegos WHERE id IN (60,61,62,63)');
+sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (40,41,42)');
+
+// ---------------- associação automática por placa próxima e desassociação
+sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,createdAt,updatedAt) VALUES
+ (70,'APX1A23',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,NULL,'cruzar',1,1,NOW(),NOW())`);
+sql(`UPDATE Trafegos SET dataSaida=UTC_TIMESTAMP()-INTERVAL 2 MINUTE, placa_saida='APX1A28', identificador_placa_saida='s-45', portaria_saida_id=1,
+ saida_automatica=1, imagem_saida='/x/s45.jpg', imagem_saida_thumb='/x/s45_thumb.jpg' WHERE id=70`);
+sql(`INSERT INTO Saidas_nao_identificadas (id,identificador_placa,placa,data,camera_id,client_id,status,trafego_id,resolvido_em,associacao_automatica,imagem_carro,createdAt,updatedAt) VALUES
+ (45,'s-45','APX1A28',UTC_TIMESTAMP()-INTERVAL 2 MINUTE,2,1,'associada',70,UTC_TIMESTAMP(),1,'/x/s45.jpg',UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+ (46,'s-46','APX9Z99',UTC_TIMESTAMP()-INTERVAL 2 MINUTE,3,2,'associada',NULL,UTC_TIMESTAMP(),1,NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP())`);
+r = await op('GET', '/saidasNaoIdentificadas/client/1/recentes');
+let auto = r.rows.find((s) => s.chave === 't70');
+ok(auto && auto.associacao_automatica === true && auto.saida_id === 45 && auto.placa === 'APX1A28' && auto.entrada.placa === 'APX1A23',
+  'associação automática: aparece marcada, com a saída a desfazer e a entrada', auto);
+ok(r.rows.filter((s) => s.chave !== 't70').every((s) => !s.associacao_automatica), 'associação automática: as demais saídas não vêm marcadas');
+r = await op('POST', '/saidasNaoIdentificadas/46/desassociar', {});
+ok(r.status === 'ERROR', 'desassociar: operador não desfaz saída de outro cliente', r);
+const manual = sql("SELECT id FROM Saidas_nao_identificadas WHERE status='associada' AND IFNULL(associacao_automatica,0)=0 LIMIT 1");
+r = await op('POST', `/saidasNaoIdentificadas/${manual}/desassociar`, {});
+ok(r.status === 'ERROR' && /automáticas/.test(r.message), 'desassociar: associação feita pelo operador não é desfeita', r);
+r = await op('POST', '/saidasNaoIdentificadas/45/desassociar', {});
+ok(r.status === 'OK', 'desassociar: desfaz a associação automática', r);
+const desfeito = sql('SELECT dataSaida IS NULL, placa_saida IS NULL, identificador_placa_saida IS NULL, imagem_saida IS NULL, portaria_saida_id IS NULL FROM Trafegos WHERE id=70');
+ok(desfeito === '1\t1\t1\t1\t1', 'desassociar: a entrada volta a ficar sem saída', desfeito);
+const voltou = sql('SELECT status, trafego_id IS NULL, IFNULL(associacao_automatica,0), imagem_carro FROM Saidas_nao_identificadas WHERE id=45');
+ok(voltou === 'pendente\t1\t0\t/x/s45.jpg', 'desassociar: a saída volta para as pendentes, com a foto', voltou);
+r = await op('GET', '/trafegos/client/1?status=travessia');
+ok(r.rows.some((t) => t.id === 70), 'desassociar: o veículo volta para a aba Em Travessia', ids(r.rows));
+r = await op('GET', '/saidasNaoIdentificadas/client/1/recentes');
+auto = r.rows.find((s) => s.chave === 's45');
+ok(auto && auto.status === 'pendente' && !r.rows.some((s) => s.chave === 't70'), 'desassociar: no painel a saída passa a sem entrada identificada', auto);
+r = await op('POST', '/saidasNaoIdentificadas/45/desassociar', {});
+ok(r.status === 'ERROR', 'desassociar: não desfaz duas vezes', r);
+sql('DELETE FROM Saidas_nao_identificadas WHERE id IN (45,46)');
+sql('DELETE FROM Trafegos WHERE id=70');
+
+// a associação em si acontece na leitura da câmera; sem câmeras, o serviço é chamado dentro do container
+if (BACKEND_CONTAINER) {
+  sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,createdAt,updatedAt) VALUES
+   (71,'APY1A23',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,NULL,'cruzar',1,1,NOW(),NOW()),
+   (72,'APY1B24',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,NULL,'cruzar',1,1,NOW(),NOW()),
+   (73,'APY1A29',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,NULL,'servico',1,1,NOW(),NOW()),
+   (74,'APY1A28',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,NULL,'cruzar',2,2,NOW(),NOW())`);
+  const noBackend = (codigo) =>
+    JSON.parse(
+      execSync(`docker exec -i -w /app ${BACKEND_CONTAINER} node -e "${codigo.replace(/\n/g, ' ')}"`, { stdio: ['pipe', 'pipe', 'ignore'] })
+        .toString().trim().split('\n').pop()
+    );
+  const base = "const s=require('./services/saidaNaoIdentificada.service'); const fim=(v)=>{console.log(JSON.stringify(v)); process.exit(0)};";
+  let x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'APY1A28',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === 71, 'placa próxima: escolhe a entrada em travessia mais parecida, do próprio cliente', x);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'ZZZ9Z99',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'placa próxima: placa distante não é associada', x);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'APY1A28',new Date(Date.now()-3600000)).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'placa próxima: saída anterior à entrada não é associada', x);
+  x = noBackend(`${base} s.associarAutomaticamente(1,{placa:'APY1A28',identificador_placa:'s-47',data:new Date(),camera_id:2,client_id:1,imagem_carro:'/x/s47.jpg'},71,1).then((t)=>fim(t&&t.id))`);
+  ok(x === 71, 'associação automática: registra a saída na entrada de placa próxima', x);
+  const feito = sql("SELECT t.placa_saida, t.dataSaida IS NOT NULL, t.saida_automatica, t.imagem_saida, s.status, s.associacao_automatica FROM Trafegos t JOIN Saidas_nao_identificadas s ON s.trafego_id=t.id WHERE t.id=71");
+  ok(feito === 'APY1A28\t1\t1\t/x/s47.jpg\tassociada\t1', 'associação automática: tráfego com a saída e registro marcado como automático', feito);
+  x = noBackend(`${base} s.associarAutomaticamente(1,{placa:'APY1A27',identificador_placa:'s-48',data:new Date(),camera_id:2,client_id:1},71,1).then((t)=>fim(t&&t.id))`);
+  ok(x === null, 'associação automática: entrada que já saiu não recebe outra saída', x);
+  sql("DELETE FROM Saidas_nao_identificadas WHERE identificador_placa IN ('s-47','s-48')");
+  sql('DELETE FROM Trafegos WHERE id IN (71,72,73,74)');
+}
+
 // ---------------- linha do tempo do dia
 r = await op('GET', '/trafegos/client/1/linha-do-tempo');
 ok(/^\d{4}-\d{2}-\d{2}$/.test(r.dia) && Array.isArray(r.trafegos) && Array.isArray(r.saidasSemEntrada), 'linha do tempo: formato da resposta', r);

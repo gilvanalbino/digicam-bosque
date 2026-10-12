@@ -9,6 +9,13 @@ class SaidaNaoIdentificadaController {
   }
 
   /**
+   * Lista as saídas da última hora: as associadas a uma entrada e as pendentes
+   */
+  async listarRecentes(loggedUserId, clientId) {
+    return await saidaNaoIdentificadaService.listarRecentes(loggedUserId, clientId);
+  }
+
+  /**
    * Arquiva as saídas pendentes com mais de 2 horas (somente administradores)
    */
   async arquivarAntigas(loggedUserId, clientId) {
@@ -20,6 +27,13 @@ class SaidaNaoIdentificadaController {
    */
   async arquivar(loggedUserId, id, motivo) {
     return await saidaNaoIdentificadaService.arquivar(loggedUserId, id, motivo);
+  }
+
+  /**
+   * Desfaz a associação automática de uma saída com uma entrada de placa próxima
+   */
+  async desassociar(loggedUserId, id) {
+    return await saidaNaoIdentificadaService.desassociar(loggedUserId, id);
   }
 
   /**

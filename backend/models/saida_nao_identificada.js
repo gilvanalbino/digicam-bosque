@@ -26,6 +26,8 @@ module.exports = (sequelize, DataTypes) => {
       resolvido_em: DataTypes.DATE,
       user_resolucao: DataTypes.INTEGER,
       motivo_arquivamento: DataTypes.STRING,
+      // associada pelo sistema a uma entrada de placa próxima (o operador pode desfazer)
+      associacao_automatica: DataTypes.BOOLEAN,
 
       imagem_carro: DataTypes.STRING,
       imagem_carro_thumb: DataTypes.STRING,

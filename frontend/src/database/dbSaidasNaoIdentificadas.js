@@ -1,9 +1,9 @@
 import { api } from '../utils/axios';
 
-export const listarSaidasNaoIdentificadas = (token, client_id, filtros = {}) => {
+export const listarSaidasRecentes = (token, client_id) => {
   return new Promise((resolve, reject) => {
     api
-      .get(`/saidasNaoIdentificadas/client/${client_id}`, { headers: { authorization: token }, params: filtros })
+      .get(`/saidasNaoIdentificadas/client/${client_id}/recentes`, { headers: { authorization: token } })
       .then((response) => {
         // erros do backend chegam com status 200 e o corpo do Boom (ver onPreResponse)
         if (response.data && response.data.statusCode >= 400) {
@@ -18,29 +18,13 @@ export const listarSaidasNaoIdentificadas = (token, client_id, filtros = {}) => 
   });
 };
 
-export const arquivarSaidasNaoIdentificadasAntigas = (token, client_id) => {
+export const desassociarSaida = (token, id) => {
   return new Promise((resolve, reject) => {
     const options = {
       headers: { authorization: token, 'Content-Type': 'application/json' },
     };
     api
-      .post(`/saidasNaoIdentificadas/client/${client_id}/arquivarAntigas`, {}, options)
-      .then((response) => {
-        resolve(response.data);
-      })
-      .catch((error) => {
-        reject(error);
-      });
-  });
-};
-
-export const arquivarSaidaNaoIdentificada = (token, id, motivo) => {
-  return new Promise((resolve, reject) => {
-    const options = {
-      headers: { authorization: token, 'Content-Type': 'application/json' },
-    };
-    api
-      .post(`/saidasNaoIdentificadas/${id}/arquivar`, { motivo }, options)
+      .post(`/saidasNaoIdentificadas/${id}/desassociar`, {}, options)
       .then((response) => {
         resolve(response.data);
       })

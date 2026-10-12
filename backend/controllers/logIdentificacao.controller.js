@@ -392,10 +392,47 @@ class LogIdentificacaoController {
       });
       console.log('Encontrou entrada - registrou saida - ', logIdentificacao.placa);
       return { status: 'OK', trafego: ret };
-    } else {
-      console.log('Não encontrou nenhuma entrada', logIdentificacao.placa);
-      return { status: 'OK', trafego: null, message: 'Não encontrou nenhuma entrada' };
     }
+
+    // sem entrada de placa igual: associa à entrada em travessia de placa mais próxima (erro de leitura da
+    // câmera). A associação fica marcada como automática e o operador pode desfazê-la na tela de tráfego.
+    const camera = await cameraService.get(loggedUserId, logIdentificacao.camera_id);
+    const entradaProxima = await saidaNaoIdentificadaService.obterEntradaPorPlacaProxima(
+      camera.client_id,
+      logIdentificacao.placa,
+      logIdentificacao.data
+    );
+    if (entradaProxima) {
+      const now = new Date();
+      const folder = `/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
+      const filename = `${logIdentificacao.placa}-saida-aprox-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+      const imagens = await salvarImagensLogIdentificacao(logIdentificacao, folder, filename);
+      const trafego = await saidaNaoIdentificadaService.associarAutomaticamente(
+        loggedUserId,
+        {
+          placa: logIdentificacao.placa,
+          identificador_placa: logIdentificacao.identificador_placa,
+          data: logIdentificacao.data,
+          camera_id: logIdentificacao.camera_id,
+          client_id: camera.client_id,
+          imagem_carro: imagens.imagem,
+          imagem_carro_thumb: imagens.imagem_thumb,
+          imagem_placa: imagens.imagem_placa,
+        },
+        entradaProxima.id,
+        camera.portaria_id
+      );
+      if (trafego) {
+        logIdentificacaoService.remove(loggedUserId, id).catch((e) => {
+          console.log('Erro removendo logIdentificacao de saída', e);
+        });
+        console.log(`Saída ${logIdentificacao.placa} associada à entrada de placa próxima ${entradaProxima.placa}`);
+        return { status: 'OK', trafego };
+      }
+    }
+
+    console.log('Não encontrou nenhuma entrada', logIdentificacao.placa);
+    return { status: 'OK', trafego: null, message: 'Não encontrou nenhuma entrada' };
   }
 }
 

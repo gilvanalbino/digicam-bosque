@@ -49,6 +49,27 @@ class SaidaNaoIdentificadaRoutes extends BaseRoute {
     };
   }
 
+  listarRecentes() {
+    return {
+      path: `/${this.context}/saidasNaoIdentificadas/client/{id}/recentes`,
+      method: 'GET',
+      options: {
+        handler: async (request, h) => {
+          return await saidaNaoIdentificadaController.listarRecentes(request.loggedUserId, request.params.id);
+        },
+        description: 'Obtem as saídas da última hora, de todos os veículos',
+        notes: 'Retorna { rows, total, pendentes }: saídas associadas a uma entrada (campo "entrada") e saídas pendentes',
+        tags: ['api', 'saidasNaoIdentificadas'],
+        validate: {
+          params: Joi.object({
+            id: Joi.number().required(),
+          }),
+          headers,
+        },
+      },
+    };
+  }
+
   arquivarAntigas() {
     return {
       path: `/${this.context}/saidasNaoIdentificadas/client/{id}/arquivarAntigas`,
@@ -99,6 +120,36 @@ class SaidaNaoIdentificadaRoutes extends BaseRoute {
           payload: Joi.object({
             motivo: Joi.string().allow('', null).max(255),
           }).allow(null),
+          headers,
+        },
+        response: {
+          schema: schemas.response,
+          failAction: 'log',
+        },
+      },
+    };
+  }
+
+  desassociar() {
+    return {
+      path: `/${this.context}/saidasNaoIdentificadas/{id}/desassociar`,
+      method: 'POST',
+      options: {
+        handler: async (request, h) => {
+          try {
+            return await saidaNaoIdentificadaController.desassociar(request.loggedUserId, request.params.id);
+          } catch (error) {
+            console.error(error);
+            throw error;
+          }
+        },
+        description: 'Desfaz a associação automática de uma saída com uma entrada de placa próxima',
+        notes: 'A entrada volta a ficar sem saída e a saída volta para as pendentes',
+        tags: ['api', 'saidasNaoIdentificadas'],
+        validate: {
+          params: Joi.object({
+            id: Joi.number().required(),
+          }),
           headers,
         },
         response: {
