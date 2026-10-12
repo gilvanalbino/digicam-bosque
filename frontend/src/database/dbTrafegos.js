@@ -143,6 +143,24 @@ export const removerTrafego = (token, id) => {
   });
 };
 
+export const obterLinhaDoTempo = (token, client_id, dia) => {
+  return new Promise((resolve, reject) => {
+    api
+      .get(`/trafegos/client/${client_id}/linha-do-tempo`, { headers: { authorization: token }, params: dia ? { dia } : {} })
+      .then((response) => {
+        // erros do backend chegam com status 200 e o corpo do Boom (ver onPreResponse)
+        if (response.data && response.data.statusCode >= 400) {
+          reject(response.data);
+        } else {
+          resolve(response.data);
+        }
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+};
+
 export const registrarSaidaManualAntigas = (token, client_id) => {
   return new Promise((resolve, reject) => {
     const options = {
