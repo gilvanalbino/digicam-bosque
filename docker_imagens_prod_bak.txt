@@ -1,0 +1,7 @@
+digicam-backend:backup            37319d51bffe        516MB             0B        
+digicam-backend:hotfix-20261011   535f837c99dc        516MB             0B   U    
+digicam-backend:latest            37319d51bffe        516MB             0B        
+digicam-frontend:backup           91af9ae29d39       55.2MB             0B   U    
+digicam-frontend:latest           91af9ae29d39       55.2MB             0B   U    
+digicam-verificar-placas:backup   74f208f23515       1.02GB             0B   U    
+digicam-verificar-placas:latest   74f208f23515       1.02GB             0B   U    
