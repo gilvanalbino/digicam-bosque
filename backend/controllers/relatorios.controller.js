@@ -23,13 +23,22 @@ class RelatoriosController {
     );
   }
 
-  async listagemTrafegoExcel(loggedUserId, clientId, dataHoraInicio, dataHoraFim, portaria_id, texto_placa_nome) {
+  async listagemTrafegoExcel(
+    loggedUserId,
+    clientId,
+    dataHoraInicio,
+    dataHoraFim,
+    portaria_entrada_id,
+    portaria_saida_id,
+    texto_placa_nome
+  ) {
     const data = await trafegoService.listPorPeriodo(
       loggedUserId,
       clientId,
       dataHoraInicio,
       dataHoraFim,
-      portaria_id,
+      portaria_entrada_id,
+      portaria_saida_id,
       texto_placa_nome
     );
 

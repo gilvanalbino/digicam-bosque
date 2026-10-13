@@ -6,7 +6,8 @@
     </div>
     <div v-if="tipoImagem==='S'">
       <img :src="`/images${trafegoSelecionado.imagem_saida}`" />
-      <img v-if="trafegoSelecionado.imagem_placa" :src="`/images${trafegoSelecionado.imagem_placa}`" />
+      <img v-if="trafegoSelecionado.saida_sem_entrada && trafegoSelecionado.imagem_saida_placa" :src="`/images${trafegoSelecionado.imagem_saida_placa}`" />
+      <img v-else-if="trafegoSelecionado.imagem_placa" :src="`/images${trafegoSelecionado.imagem_placa}`" />
     </div>
   </ModalDialog>
   <Main titulo="Listagem de tráfego por período" menu="Rel. Listagem Trafego">
@@ -122,19 +123,19 @@
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center" @click="visualizarImagem(trafego, 'E')">
+                    <div v-if="!trafego.saida_sem_entrada" class="flex items-center" @click="visualizarImagem(trafego, 'E')">
                       <img class="w-20 rounded-lg " :src="`/images${trafego.imagem_thumb}`" alt="" />
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center">
                       <div class="text-sm font-medium text-gray-900">
-                        {{ mapPortarias[trafego.portaria_entrada_id].nome }}
+                        {{ trafego.portaria_entrada_id && mapPortarias[trafego.portaria_entrada_id] ? mapPortarias[trafego.portaria_entrada_id].nome : "" }}
                       </div>
                     </div>
                     <div class="flex items-center">
                       <div class="text-sm font-medium text-gray-900">
-                        {{ formatarData(trafego.dataEntrada) }}
+                        {{ trafego.dataEntrada ? formatarData(trafego.dataEntrada) : "" }}
                       </div>
                     </div>
                   </td>
@@ -167,7 +168,7 @@
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center">
                       <div class="text-sm font-medium text-gray-900">
-                        {{ trafego.portaria_saida_id ? mapPortarias[trafego.portaria_saida_id].nome : "" }}
+                        {{ trafego.portaria_saida_id && mapPortarias[trafego.portaria_saida_id] ? mapPortarias[trafego.portaria_saida_id].nome : "" }}
                       </div>
                     </div>
                     <div class="flex items-center">

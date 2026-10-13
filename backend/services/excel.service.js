@@ -43,9 +43,10 @@ const generateTrafegoExcel = (data, portarias) => {
       nome: d.nome,
       destino: d.destino,
       observacao: d.observacao,
-      portariaEntrada: mapPortaria[d.portaria_entrada_id],
+      portariaEntrada: d.portaria_entrada_id ? mapPortaria[d.portaria_entrada_id] : '',
       portariaSaida: d.portaria_saida_id ? mapPortaria[d.portaria_saida_id] : '',
-      dataEntradaFormatada: dayjs(d.dataEntrada).tz('America/Bahia').format('DD/MM/YYYY HH:mm:ss'),
+      // saída sem entrada identificada não tem data de entrada
+      dataEntradaFormatada: d.dataEntrada ? dayjs(d.dataEntrada).tz('America/Bahia').format('DD/MM/YYYY HH:mm:ss') : '',
       dataSaidaFormatada: d.dataSaida ? dayjs(d.dataSaida).tz('America/Bahia').format('DD/MM/YYYY HH:mm:ss') : '',
       greenList: d.in_whitelist ? 'Sim' : '',
     };

@@ -2,7 +2,7 @@
 
 const { Op } = require('sequelize');
 const dayjs = require('dayjs');
-const { Trafego, User, SaidaNaoIdentificada, Camera } = require('../models');
+const { Trafego, User, SaidaNaoIdentificada, Camera, WhiteList } = require('../models');
 const TrafegoRoutes = require('../routes/trafego.route');
 
 const listarSemSaida = async (loggedUserId, clientId) => {
@@ -251,10 +251,79 @@ const listPorPeriodo = async (
       order: [['dataEntrada', 'ASC']],
     };
     console.log('params: ', params);
-    return await Trafego.findAll(params);
+    const trafegos = await Trafego.findAll(params);
+    const saidas = await listarSaidasSemEntradaPorPeriodo(
+      clientId,
+      dataHoraInicio,
+      dataHoraFim,
+      portaria_entrada_id,
+      portaria_saida_id,
+      texto_placa_nome
+    );
+    if (saidas.length === 0) {
+      return trafegos;
+    }
+    const instante = (linha) => new Date(linha.dataEntrada || linha.dataSaida).getTime();
+    return [...trafegos.map((trafego) => trafego.toJSON()), ...saidas].sort((a, b) => instante(a) - instante(b));
   } else {
     throw Error('Operation not allowed');
   }
+};
+
+/**
+ * Saídas sem entrada identificada do período (pendentes e arquivadas; as associadas já estão no tráfego
+ * correspondente), no formato das linhas de tráfego do relatório: sem dados de entrada e com a leitura da
+ * câmera nos campos de saída. Com filtro de portaria de entrada não há o que listar: elas não têm entrada.
+ */
+const listarSaidasSemEntradaPorPeriodo = async (
+  clientId,
+  dataHoraInicio,
+  dataHoraFim,
+  portaria_entrada_id,
+  portaria_saida_id,
+  texto_placa_nome
+) => {
+  if (portaria_entrada_id) {
+    return [];
+  }
+  const where = {
+    client_id: clientId,
+    data: { [Op.between]: [dataHoraInicio, dataHoraFim] },
+    status: { [Op.in]: ['pendente', 'arquivada'] },
+  };
+  if (texto_placa_nome) {
+    where.placa = texto_placa_nome;
+  }
+  const camera = { model: Camera, attributes: ['id', 'portaria_id'] };
+  if (portaria_saida_id) {
+    camera.where = { portaria_id: portaria_saida_id };
+  }
+  const saidas = await SaidaNaoIdentificada.findAll({
+    attributes: ['id', 'placa', 'data', 'status', 'imagem_carro', 'imagem_carro_thumb', 'imagem_placa'],
+    where,
+    include: [camera],
+  });
+  if (saidas.length === 0) {
+    return [];
+  }
+  const veiculos = await WhiteList.findAll({ attributes: ['placa'], where: { client_id: clientId }, raw: true });
+  const greenList = new Set(veiculos.map((veiculo) => veiculo.placa));
+  return saidas.map((saida) => ({
+    id: `s${saida.id}`,
+    saida_sem_entrada: true,
+    placa: saida.placa,
+    nome: null,
+    destino: null,
+    observacao: saida.status === 'arquivada' ? 'Saída sem entrada identificada (arquivada)' : 'Saída sem entrada identificada',
+    in_whitelist: greenList.has(saida.placa),
+    dataEntrada: null,
+    portaria_entrada_id: null,
+    dataSaida: saida.data,
+    portaria_saida_id: saida.Camera ? saida.Camera.portaria_id : null,
+    imagem_saida: saida.imagem_carro,
+    imagem_saida_thumb: saida.imagem_carro_thumb,
+    imagem_saida_placa: saida.imagem_placa,
+  }));
 };
 
 const get = async (loggedUserId, id) => {

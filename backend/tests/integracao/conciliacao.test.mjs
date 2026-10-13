@@ -44,7 +44,8 @@ const api = (token) => async (method, path, body) => {
 const ids = (rows) => rows.map((r) => r.id).sort((a, b) => a - b).join(',');
 
 const admin = api(await login(process.env.ADMIN_EMAIL || 'system@digicam.com.br', process.env.ADMIN_PASSWORD));
-const op = api(await login('op@bosque', 'op123'));
+const tokenOp = await login('op@bosque', 'op123');
+const op = api(tokenOp);
 const opId = sql("SELECT id FROM Users WHERE email='op@bosque'");
 
 // ---------------- 4.1 listagem por status
@@ -322,6 +323,55 @@ r = await op('GET', '/trafegos/client/1/linha-do-tempo?dia=2020-01-01');
 ok(r.dia === '2020-01-01' && r.trafegos.length === 0 && r.saidasSemEntrada.length === 0, 'linha do tempo: dia sem movimento vem vazio', r);
 r = await op('GET', '/trafegos/client/2/linha-do-tempo');
 ok(r.trafegos.length === 0 && r.saidasSemEntrada.length === 0, 'linha do tempo: operador não vê outro cliente', r);
+
+// ---------------- relatório de listagem de tráfego: inclui as saídas sem entrada identificada
+{
+  sql(`INSERT INTO WhiteList (id,placa,nome,client_id,user_id,createdAt,updatedAt) VALUES (901,'REL1A14','Morador Relatório',1,${opId},NOW(),NOW())`);
+  sql(`INSERT INTO Saidas_nao_identificadas (id,identificador_placa,placa,data,camera_id,client_id,status,trafego_id,createdAt,updatedAt) VALUES
+   (60,'s-60','REL1A11',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,2,1,'pendente',NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+   (61,'s-61','REL1A12',UTC_TIMESTAMP()-INTERVAL 4 MINUTE,2,1,'arquivada',NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+   (62,'s-62','REL1A13',UTC_TIMESTAMP()-INTERVAL 3 MINUTE,2,1,'associada',1,UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+   (63,'s-63','REL1A14',UTC_TIMESTAMP()-INTERVAL 2 MINUTE,2,1,'pendente',NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+   (64,'s-64','REL2A11',UTC_TIMESTAMP()-INTERVAL 2 MINUTE,3,2,'pendente',NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP()),
+   (65,'s-65','REL1A15',UTC_TIMESTAMP()-INTERVAL 3 DAY,2,1,'pendente',NULL,UTC_TIMESTAMP(),UTC_TIMESTAMP())`);
+  const periodo = { dataHoraInicio: new Date(Date.now() - 12 * 3600 * 1000).toISOString(), dataHoraFim: new Date(Date.now() + 60 * 1000).toISOString() };
+  const relatorio = (filtros = {}) => op('POST', '/relatorios/listagemTrafego/client/1', { ...periodo, ...filtros });
+  // só as saídas criadas aqui (placas REL...): as etapas anteriores deixam outras saídas sem entrada no banco
+  const semEntrada = (linhas) => linhas.filter((l) => l.saida_sem_entrada && /^REL/.test(l.placa)).map((l) => l.id).sort().join(',');
+
+  r = await relatorio();
+  ok(semEntrada(r) === 's60,s61,s63', 'relatório: traz as saídas sem entrada pendentes e arquivadas do período; fora a associada, a antiga e a de outro cliente', semEntrada(r));
+  ok(r.some((l) => !l.saida_sem_entrada && l.dataEntrada), 'relatório: os tráfegos continuam na listagem', r.length);
+  const s60 = r.find((l) => l.id === 's60');
+  ok(s60 && s60.placa === 'REL1A11' && s60.dataEntrada === null && s60.portaria_entrada_id === null && s60.dataSaida && s60.portaria_saida_id === 1
+    && s60.observacao === 'Saída sem entrada identificada' && s60.in_whitelist === false, 'relatório: linha da saída sem entrada só tem os dados de saída', s60);
+  ok(r.find((l) => l.id === 's61').observacao === 'Saída sem entrada identificada (arquivada)', 'relatório: saída arquivada vem identificada', r.find((l) => l.id === 's61'));
+  ok(r.find((l) => l.id === 's63').in_whitelist === true, 'relatório: saída de veículo da green list vem marcada', r.find((l) => l.id === 's63'));
+  const instantes = r.map((l) => new Date(l.dataEntrada || l.dataSaida).getTime());
+  ok(instantes.every((t, i) => i === 0 || instantes[i - 1] <= t), 'relatório: linhas em ordem de horário (entrada, ou saída quando não há entrada)', instantes);
+
+  r = await relatorio({ texto_placa_nome: 'REL1A12' });
+  ok(r.length === 1 && r[0].id === 's61', 'relatório: filtro por placa vale para as saídas sem entrada', r);
+  r = await relatorio({ portaria_saida_id: 1 });
+  ok(semEntrada(r) === 's60,s61,s63', 'relatório: filtro por portaria de saída usa a portaria da câmera', semEntrada(r));
+  r = await relatorio({ portaria_saida_id: 2 });
+  ok(semEntrada(r) === '', 'relatório: outra portaria de saída não traz as saídas sem entrada', semEntrada(r));
+  r = await relatorio({ portaria_entrada_id: 1 });
+  ok(semEntrada(r) === '' && r.length > 0, 'relatório: com filtro de portaria de entrada, só tráfegos', semEntrada(r));
+  r = await op('POST', '/relatorios/listagemTrafego/client/2', periodo);
+  ok(!Array.isArray(r) || r.length === 0, 'relatório: operador não vê outro cliente', r);
+
+  const excel = await fetch(`${BASE}/relatorios/listagemTrafego/client/1/excel`, {
+    method: 'POST',
+    headers: { authorization: tokenOp, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...periodo, texto_placa_nome: 'REL1A11' }),
+  });
+  const bytes = Buffer.from(await excel.arrayBuffer());
+  ok(excel.status === 200 && bytes.subarray(0, 2).toString() === 'PK', 'relatório: Excel gerado com saída sem entrada (sem data de entrada)', { status: excel.status, tamanho: bytes.length });
+
+  sql('DELETE FROM Saidas_nao_identificadas WHERE id BETWEEN 60 AND 65');
+  sql('DELETE FROM WhiteList WHERE id=901');
+}
 
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
