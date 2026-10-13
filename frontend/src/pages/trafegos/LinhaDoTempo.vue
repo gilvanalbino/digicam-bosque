@@ -25,9 +25,8 @@
     <!-- Resumo e filtros -->
     <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
       <div>
-        <label for="linha-dia" class="block text-xs font-medium text-gray-500">Dia</label>
-        <input id="linha-dia" type="date" v-model="dia" :max="hoje()"
-            class="mt-1 block rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500" />
+        <label for="dp-input-linha-dia" class="block text-xs font-medium text-gray-500">Dia</label>
+        <CampoData id="linha-dia" v-model="dia" :max="hoje()" :clearable="false" class="mt-1" />
       </div>
       <div>
         <label for="linha-placa" class="block text-xs font-medium text-gray-500">Placa</label>
@@ -192,6 +191,7 @@ import { notify } from 'notiwind';
 
 import Main from '../layout/Main.vue';
 import ModalDialog from '../../components/ModalDialog.vue';
+import CampoData from '../../components/CampoData.vue';
 
 import useLogin from '../../composables/useLogin';
 import useClientes from '../../composables/useClientes';
@@ -207,7 +207,7 @@ const PASSO = 150;
 // Linha do tempo de um dia, com as entradas à esquerda e as saídas à direita. Cada registro ocupa uma faixa;
 // quando o veículo entrou e saiu, os dois pontos são ligados e a permanência aparece na ligação.
 export default {
-  components: { Main, ModalDialog },
+  components: { Main, ModalDialog, CampoData },
   setup() {
     const hoje = () => {
       const agora = new Date();

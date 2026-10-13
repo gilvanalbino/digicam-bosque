@@ -172,12 +172,12 @@
       <!-- Filtros -->
       <div class="mt-5 flex flex-wrap items-end gap-4">
         <div>
-          <label for="anomalia-de" class="block text-xs font-medium text-gray-500">De</label>
-          <input id="anomalia-de" type="date" v-model="filtros.de" class="mt-1 block rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500" />
+          <label for="dp-input-anomalia-de" class="block text-xs font-medium text-gray-500">De</label>
+          <CampoData id="anomalia-de" v-model="filtros.de" class="mt-1" />
         </div>
         <div>
-          <label for="anomalia-ate" class="block text-xs font-medium text-gray-500">Até</label>
-          <input id="anomalia-ate" type="date" v-model="filtros.ate" class="mt-1 block rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500" />
+          <label for="dp-input-anomalia-ate" class="block text-xs font-medium text-gray-500">Até</label>
+          <CampoData id="anomalia-ate" v-model="filtros.ate" class="mt-1" />
         </div>
         <div>
           <label for="anomalia-faixa" class="block text-xs font-medium text-gray-500">Prioridade</label>
@@ -263,6 +263,7 @@ import debounce from 'lodash/debounce';
 import Main from '../layout/Main.vue';
 import ModalDialog from '../../components/ModalDialog.vue';
 import Paginacao from '../../components/Paginacao.vue';
+import CampoData from '../../components/CampoData.vue';
 
 import useLogin from '../../composables/useLogin';
 import useClientes from '../../composables/useClientes';
@@ -299,7 +300,7 @@ const inicioDoDia = (texto, deslocamento = 0) => {
 };
 
 export default {
-  components: { Main, ModalDialog, Paginacao },
+  components: { Main, ModalDialog, Paginacao, CampoData },
   setup() {
     const usuario = computed(() => useLogin.state.auth.user || {});
     const administrador = computed(() => !!(usuario.value.admin || usuario.value.admin_client));
