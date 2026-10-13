@@ -213,7 +213,8 @@ import {
   DocumentReportIcon,
   SwitchVerticalIcon,
   BanIcon,
-  ClockIcon
+  ClockIcon,
+  ExclamationIcon
 } from '@heroicons/vue/outline'
 
 
@@ -275,6 +276,7 @@ export default {
       { name: 'Tráfego', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/')} },
       // { name: 'Tráfego/Saídas', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/trafegos/saidas')} },
       { name: 'Linha do Tempo', visible: true, icon: ClockIcon, action: ()=>{router.replace('/linha-do-tempo')} },
+      { name: 'Anomalias', visible: user.admin || user.admin_client, icon: ExclamationIcon, action: ()=>{router.replace('/anomalias')} },
       { name: 'Green List', visible: true, icon: SwitchVerticalIcon, action: ()=>{router.replace('/greenList')} },
       { name: 'Red List', visible: true, icon: BanIcon, action: ()=>{router.replace('/redList')} },
       { name: 'Cadastro de Clientes', visible: user.admin, icon: UsersIcon, action: ()=>{router.replace('/clientes')} },

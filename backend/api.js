@@ -14,6 +14,7 @@ const CarroRoutes = require('./routes/carro.route');
 const PortariaRoutes = require('./routes/portaria.route');
 const LogIdentificacaoRoutes = require('./routes/logIdentificacao.route');
 const SaidaNaoIdentificadaRoutes = require('./routes/saidaNaoIdentificada.route');
+const AnomaliaRoutes = require('./routes/anomalia.route');
 const RelatoriosRoutes = require('./routes/relatorios.route');
 const WhiteListRoutes = require('./routes/whiteList.route');
 const BlackListRoutes = require('./routes/blackList.route');
@@ -77,6 +78,7 @@ const init = async () => {
     ...mapRoutes(new PortariaRoutes(CONTEXT), PortariaRoutes.methods()),
     ...mapRoutes(new LogIdentificacaoRoutes(CONTEXT), LogIdentificacaoRoutes.methods()),
     ...mapRoutes(new SaidaNaoIdentificadaRoutes(CONTEXT), SaidaNaoIdentificadaRoutes.methods()),
+    ...mapRoutes(new AnomaliaRoutes(CONTEXT), AnomaliaRoutes.methods()),
     ...mapRoutes(new RelatoriosRoutes(CONTEXT), RelatoriosRoutes.methods()),
     ...mapRoutes(new WhiteListRoutes(CONTEXT), WhiteListRoutes.methods()),
     ...mapRoutes(new BlackListRoutes(CONTEXT), WhiteListRoutes.methods()),

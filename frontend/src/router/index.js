@@ -21,6 +21,7 @@ import FormTrafego from '../pages/trafegos/FormTrafego.vue';
 import ListSelecaoIdentAuto from '../pages/trafegos/ListSelecaoIdentAuto.vue';
 import Dashboard from '../pages/trafegos/Dashboard.vue';
 import LinhaDoTempo from '../pages/trafegos/LinhaDoTempo.vue';
+import Anomalias from '../pages/anomalias/Anomalias.vue';
 
 import ListagemTrafegoPorPeriodo from '../pages/relatorios/ListagemTrafegoPorPeriodo.vue';
 
@@ -106,6 +107,10 @@ const router = createRouter({
     {
       path: '/linha-do-tempo',
       component: LinhaDoTempo,
+    },
+    {
+      path: '/anomalias',
+      component: Anomalias,
     },
     {
       path: '/trafegos/novo',

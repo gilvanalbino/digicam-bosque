@@ -1,7 +1,8 @@
 # Plano de implementação — Detector estatístico de anomalias
 
 Escrito em 2026-10-12, a partir da "Especificação Inicial do Detector Estatístico de Anomalias" (versão 0.1).
-Nada deste plano foi executado. Os números do item 2 vêm de consultas de leitura ao banco de homologação
+As Fases 1 a 5 e parte da 6 foram implementadas em 12/10/2026 e estão em homologação; o que foi feito, o que
+mudou em relação a este plano e o que falta estão no item 16. Os números do item 2 vêm de consultas de leitura ao banco de homologação
 (cópia de produção de 10/10/2026, cliente 2, janela de 90 dias: 12/07 a 10/10/2026).
 
 ## 1. Objetivo
@@ -88,7 +89,8 @@ Uma passagem é uma leitura de placa numa portaria: `(client_id, placa, instante
 | `Saidas_nao_identificadas` com status diferente de `associada` | saída | `placa` | `data` |
 
 As saídas `associada` já estão no tráfego correspondente e ficam fora para não contar duas vezes. Baixas
-manuais não são passagens: nenhuma câmera leu o veículo saindo.
+manuais não são passagens: nenhuma câmera leu o veículo saindo. O tráfego com baixa manual conta como entrada
+sem saída, igual à viagem aberta (decisão de 13/10/2026).
 
 Limitações a registrar no relatório da Fase 1:
 - leituras descartadas hoje (sentido contrário ao da câmera, duplicadas) não ficam em nenhuma tabela;
@@ -103,7 +105,8 @@ Uma viagem entra no cálculo de duração quando:
 - a duração está abaixo de um teto a definir na Fase 1.
 
 Viagens com placa de saída diferente da de entrada são aceitas com qualidade reduzida. Cada viagem recebe um
-motivo de exclusão explícito quando não é válida; viagens abertas ficam fora (item 8.4).
+motivo de exclusão explícito quando não é válida; entradas sem saída (viagens abertas e baixas manuais) ficam
+fora (item 8.4).
 
 ### 5.3 Identidade e erro de leitura
 
@@ -240,9 +243,10 @@ alerta é o intervalo do job mais o tempo de processamento, e é medido (item 11
 Garantida pela chave única de deduplicação e pelo cursor gravado em `Anomalia_execucoes`. Duas execuções
 simultâneas são evitadas por trava no banco.
 
-### 8.4 Viagens abertas
+### 8.4 Entradas sem saída (viagens abertas e baixas manuais)
 
-Fora da distribuição de durações. A análise de permanência em aberto (tempo desde a entrada) fica para depois
+A baixa manual tem data de saída, mas nenhuma câmera leu o veículo saindo: é tratada como entrada sem saída,
+junto com as viagens abertas. Fora da distribuição de durações. A análise de permanência em aberto (tempo desde a entrada) fica para depois
 da primeira versão; a tela de Tráfego já sinaliza permanência acima de 3 minutos em travessia.
 
 ## 9. API
@@ -340,3 +344,98 @@ Os dez critérios do item 15 da especificação valem como estão, com dois ajus
 | P7 | Fuso do condomínio | configurável por cliente, com o padrão atual do backend |
 | P8 | Histórico de incidentes ou revisões de segurança para comparar | perguntar ao cliente; sem ele, vale só a avaliação do modo sombra |
 | P9 | Critérios para considerar um alerta relevante | escrever com a equipe de segurança antes da Fase 6 |
+
+## 16. Resultados da implementação (12/10/2026)
+
+Branch `feature/detector-anomalias`, publicada só em homologação (versão `r47`). Produção não foi tocada.
+
+### 16.1 O que foi entregue
+
+| Fase | Situação | Onde |
+|---|---|---|
+| 1. Auditoria de dados | feita (item 16.2) | — |
+| 2. Passagens, viagens e referências | feito | `backend/services/anomalia/preparacao.js`, `motor.js`, `dados.js`; migração `20261013000000-detector-anomalias` |
+| 3. Analisadores | feito (duração, frequência, horário, EWMA) | `backend/services/anomalia/estatistica.js`, `motor.js` |
+| 4. Score e alertas | feito | `motor.js`, `job.js`, `executar.js` |
+| 5. API e tela | feito | `routes/anomalia.route.js`, `services/anomalia/consulta.js`, `frontend/src/pages/anomalias/Anomalias.vue` |
+| 6. Validação | parcial: simulação retrospectiva e job em modo sombra no HML; falta a revisão pela equipe e a calibração | — |
+| 7. Implantação controlada | não feita | — |
+
+- **Job:** serviço `anomalias` no compose de homologação (`node services/anomalia/executar.js --modo=servico`),
+  um ciclo a cada 5 minutos, referências uma vez por dia. Uma carga de 104 dias leva cerca de 2 s; a primeira
+  execução (30 dias, 66.081 passagens avaliadas, 1.508 alertas) levou 25 s.
+- **Testes:** 22 testes unitários (`npm run test:unitario`, `node:test` nativo) e 44 verificações de
+  integração (`npm run test:integracao:anomalias`), mais as 90 do teste de conciliação, sem regressão.
+
+### 16.2 Auditoria de dados (Fase 1)
+
+Janela de 90 dias até 10/10/2026, 60.130 tráfegos e 92.161 saídas sem entrada:
+
+| Situação da viagem | Quantidade | Tratamento |
+|---|---:|---|
+| Válida | 42.679 | entra no cálculo de duração |
+| Passagem intermediária | 13.283 | excluída |
+| Sem saída (409 abertas e 3.759 baixas manuais) | 4.168 | excluída |
+| Saída antes da entrada | 0 | — |
+
+- **Hipótese das durações longas confirmada em parte:** das viagens com mais de 24 horas, 5.310 têm outra
+  leitura da mesma placa no meio (saída casada com entrada antiga) e 2.166 não têm. O filtro de passagem
+  intermediária retira a maior parte; o teto de 24 horas retira o restante.
+- **Leitura dupla na saída:** 2.226 viagens de menos de 3 minutos tinham outra leitura da placa "no meio". A
+  explicação provável, não conferida caso a caso, é o mesmo veículo lido pelas duas câmeras de saída. Por isso
+  uma leitura de saída até 10 minutos antes da saída do tráfego não invalida a viagem.
+- **Placas inválidas:** cerca de 7% das leituras não têm formato de placa (por exemplo `UNKNOWN`) e são
+  descartadas na preparação.
+- **Histórico individual:** 827 placas têm 10 ou mais viagens válidas (251 têm 30 ou mais); 2.815 têm 10 ou
+  mais passagens.
+
+### 16.3 O que mudou em relação a este plano
+
+| Tema | Plano | Implementado | Motivo |
+|---|---|---|---|
+| Alerta | um por evento, com chave por tráfego ou janela | **um por placa e por dia** (o evento de maior score); os demais do dia viram contagem | volume e leitura mais simples para o revisor |
+| Anomalia que persiste | "atualizar o alerta existente" | nos 7 dias seguintes, a mesma placa e dimensão só gera novo alerta se o score subir 10 pontos; senão a repetição é anotada no alerta original | sem isso, uma mudança de frequência semanal gerava um alerta por dia |
+| Perfis | cinco | seis: acrescentado `recorrente` (10 ou mais passagens, menos de 10 viagens válidas) | as regras do plano não cobriam esse caso |
+| Referência do perfil | pontua normalmente | dimensão calculada pelo perfil tem teto (59 para duração e frequência, 25 para horário) | histórico insuficiente não deve produzir prioridade alta sozinho; horário do perfil era só ruído |
+| Horário | raridade a partir de 5% | raridade a partir de 2% (60 pontos em 0,5%) | com 5%, quase toda hora pouco usada pontuava |
+| Frequência | dispersão mínima de 1 | mínimos maiores (1,5 no dia, 3 na semana) e diferença absoluta mínima (4, 4 e 6 passagens) | a captura irregular das câmeras faz as contagens variarem muito |
+| Janela ampliada de 180 dias | prevista | não usada | os analisadores usam só a janela de 90 dias |
+| Incremental | cursor | cursor com margem de consolidação de 10 minutos | saídas sem entrada só são gravadas 3 minutos depois da leitura |
+| Usuário de banco próprio | recomendado | não criado: o job usa o usuário da aplicação | fica para a implantação |
+| Baixa manual | categoria própria, excluída | conta como **entrada sem saída**, junto com a viagem aberta (13/10/2026); o histórico do veículo mostra "sem saída" | decisão do usuário: sem leitura de câmera, a saída não foi observada. A pontuação não muda |
+
+Os parâmetros estão todos em `backend/services/anomalia/parametros.js`, com a versão do modelo (`1.0.0`).
+
+### 16.4 Volume observado
+
+Simulação retrospectiva de 14 dias (26/09 a 09/10/2026), com os parâmetros atuais:
+
+| Faixa | Alertas por dia (média) |
+|---|---:|
+| Observação (30–59) | 30 |
+| Revisão (60–79) | 9 |
+| Prioridade alta (80–100) | 13 |
+
+Antes dos ajustes do item 16.3 eram cerca de 300 por dia. Dimensão principal dos alertas a partir de 60:
+duração em 184, frequência em 101 e horário em 27. Em 14 dias, 292 ocorrências viraram repetição de alerta
+anterior e 285 leituras foram tratadas como provável erro de leitura.
+
+Esses números não foram revisados por ninguém da operação: mostram a carga de revisão, não a qualidade dos
+alertas.
+
+A auditoria e a simulação rodaram antes da correção de um erro de fuso na carga do histórico (os limites do
+período eram deslocados em 3 horas). O efeito sobre os totais de 90 e de 14 dias é marginal, mas os números
+não foram recalculados depois da correção.
+
+### 16.5 O que falta
+
+- **Calibração com a equipe (Fase 6):** revisar uma amostra de alertas e de eventos não alertados, definir o
+  volume aceitável (P4) e o critério de relevância (P9), ajustar limiares e pesos.
+- **Decisões pendentes do item 15:** foram seguidas as recomendações (green list entra com o contexto exibido;
+  só administradores veem e revisam; sem feriados; fuso do container). Retenção e LGPD (P5) continuam abertas:
+  só as referências têm limpeza automática (180 dias).
+- **Implantação em produção (Fase 7):** depende de publicar a conciliação nova, aplicar as migrações e subir o
+  job em projeto compose próprio, com usuário de banco de leitura.
+- **Entradas sem saída** (viagens abertas e baixas manuais) e **rota** continuam fora da pontuação, como
+  planejado.
+- **Auditoria de consulta:** as revisões ficam registradas com o revisor; as consultas aos alertas não.

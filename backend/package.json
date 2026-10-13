@@ -7,7 +7,9 @@
     "dev": "NODE_ENV=development node server.js",
     "start": "NODE_ENV=production node server.js",
     "placas": "node src/server.js",
-    "test:integracao": "node tests/integracao/conciliacao.test.mjs"
+    "test:unitario": "node --test tests/unitario/",
+    "test:integracao": "node tests/integracao/conciliacao.test.mjs",
+    "test:integracao:anomalias": "node tests/integracao/anomalias.test.mjs"
   },
   "keywords": [],
   "author": "",
