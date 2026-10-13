@@ -4,7 +4,7 @@
 // próprio cliente) acessam; operadores não veem os alertas nesta versão.
 const { Op, QueryTypes } = require('sequelize');
 const {
-  sequelize, User, Trafego, Anomalia, AnomaliaRevisao, AnomaliaReferencia, AnomaliaExecucao,
+  sequelize, User, Trafego, SaidaNaoIdentificada, Camera, Anomalia, AnomaliaRevisao, AnomaliaReferencia, AnomaliaExecucao,
 } = require('../../models');
 const { normalizarPlaca, dataLocalIso } = require('./preparacao');
 const { faixaDoScore } = require('./estatistica');
@@ -69,7 +69,11 @@ const CAMPOS_TRAFEGO = [
   'imagem_saida_placa',
 ];
 
-/** Alerta com as evidências, as revisões e o tráfego do evento. */
+// saída lida pela câmera sem entrada identificada: é uma passagem do veículo, mas não tem linha em Trafegos
+const CAMPOS_SAIDA = ['id', 'placa', 'data', 'status', 'imagem_carro', 'imagem_carro_thumb', 'imagem_placa'];
+const CAMERA_DA_SAIDA = { model: Camera, attributes: ['id', 'portaria_id'] };
+
+/** Alerta com as evidências, as revisões e o tráfego (ou a saída sem entrada) do evento. */
 const obter = async (loggedUserId, id) => {
   const anomalia = await Anomalia.findByPk(id, {
     include: [{ model: AnomaliaRevisao, as: 'revisoes', include: [{ model: User, attributes: ['id', 'name'] }] }],
@@ -79,13 +83,22 @@ const obter = async (loggedUserId, id) => {
     return { status: 'ERROR', message: 'Alerta não encontrado' };
   }
   const trafego = anomalia.trafego_id ? await Trafego.findByPk(anomalia.trafego_id, { attributes: CAMPOS_TRAFEGO }) : null;
-  return { status: 'OK', anomalia: formatar(anomalia), trafego };
+  // evento que é uma saída sem entrada identificada: não há tráfego, a foto está na própria saída
+  const evento = (comoObjeto(anomalia.evidencias) || {}).evento || {};
+  const saida =
+    !trafego && evento.saida_id
+      ? await SaidaNaoIdentificada.findOne({ attributes: CAMPOS_SAIDA, where: { id: evento.saida_id, client_id: anomalia.client_id }, include: [CAMERA_DA_SAIDA] })
+      : null;
+  return { status: 'OK', anomalia: formatar(anomalia), trafego, saida };
 };
 
-/** Histórico estatístico de uma placa no cliente: referências, alertas e últimos tráfegos. */
+/**
+ * Histórico estatístico de uma placa no cliente: referências, alertas, últimos tráfegos e últimas saídas sem
+ * entrada identificada (há veículos que só aparecem nelas).
+ */
 const historicoDaPlaca = async (loggedUserId, clientId, placa) => {
   if (!(await podeAcessar(loggedUserId, clientId))) {
-    return { placa: normalizarPlaca(placa), referencias: [], alertas: [], trafegos: [] };
+    return { placa: normalizarPlaca(placa), referencias: [], alertas: [], trafegos: [], saidas: [] };
   }
   const chave = normalizarPlaca(placa);
   const referencias = await AnomaliaReferencia.findAll({
@@ -106,7 +119,14 @@ const historicoDaPlaca = async (loggedUserId, clientId, placa) => {
     order: [['dataEntrada', 'DESC']],
     limit: 30,
   });
-  return { placa: chave, referencias, alertas: alertas.map((alerta) => formatar(alerta, { resumido: true })), trafegos };
+  const saidas = await SaidaNaoIdentificada.findAll({
+    attributes: CAMPOS_SAIDA,
+    where: { client_id: clientId, placa: chave, status: { [Op.in]: ['pendente', 'arquivada'] } },
+    include: [CAMERA_DA_SAIDA],
+    order: [['data', 'DESC']],
+    limit: 30,
+  });
+  return { placa: chave, referencias, alertas: alertas.map((alerta) => formatar(alerta, { resumido: true })), trafegos, saidas };
 };
 
 /**

@@ -51,7 +51,14 @@ const carregarHistorico = async (clientId, de, ate) => {
     { clientId, de: emUtc(de), ate: emUtc(ate) }
   );
   const cameras = await selecionar('SELECT id, portaria_id FROM Cameras WHERE client_id = :clientId', { clientId });
-  return { trafegos, saidas, portariaDaCamera: new Map(cameras.map((camera) => [camera.id, camera.portaria_id])) };
+  // green list atual do cliente: as placas dela não são avaliadas
+  const greenList = await selecionar('SELECT placa FROM WhiteList WHERE client_id = :clientId', { clientId });
+  return {
+    trafegos,
+    saidas,
+    portariaDaCamera: new Map(cameras.map((camera) => [camera.id, camera.portaria_id])),
+    greenList: greenList.map((veiculo) => veiculo.placa),
+  };
 };
 
 // ---------- execuções (cursor do incremental e métricas)

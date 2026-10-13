@@ -54,10 +54,11 @@ const SITUACOES = ['valida', 'sem_saida', 'saida_antes_da_entrada', 'passagem_in
  *  - saidas: linhas de Saidas_nao_identificadas (id, placa, data, camera_id, status); as "associada" já estão
  *    no tráfego correspondente e ficam fora
  *  - portariaDaCamera: Map camera_id -> portaria_id
+ *  - greenList: placas da green list atual do cliente (o detector não avalia essas placas)
  * A saída de um tráfego conta para a placa da entrada, mesmo quando a placa lida na saída é diferente: a
  * associação (do sistema ou do operador) diz que é o mesmo veículo.
  */
-const montarIndice = ({ trafegos, saidas, portariaDaCamera = new Map() }, { tetoDuracaoS, toleranciaSaidaDuplaS = 600 }) => {
+const montarIndice = ({ trafegos, saidas, portariaDaCamera = new Map(), greenList = [] }, { tetoDuracaoS, toleranciaSaidaDuplaS = 600 }) => {
   const porPlaca = new Map();
   const dados = (chave) => {
     let registro = porPlaca.get(chave);
@@ -85,7 +86,6 @@ const montarIndice = ({ trafegos, saidas, portariaDaCamera = new Map() }, { teto
     }
     resumo.trafegos++;
     const registro = dados(chave);
-    if (trafego.in_whitelist) registro.greenList = true;
     if (trafego.in_blacklist) registro.redList = true;
     const tEntrada = new Date(trafego.dataEntrada).getTime();
     novaPassagem(chave, tEntrada, { sentido: 'E', portaria: trafego.portaria_entrada_id, trafegoId: trafego.id });
@@ -121,6 +121,12 @@ const montarIndice = ({ trafegos, saidas, portariaDaCamera = new Map() }, { teto
       portaria: portariaDaCamera.get(saida.camera_id) || null,
       saidaId: saida.id,
     });
+  }
+
+  // vale a green list de agora, não a marcação gravada em cada tráfego: quem saiu da lista volta a ser avaliado
+  for (const placa of greenList) {
+    const registro = porPlaca.get(normalizarPlaca(placa));
+    if (registro) registro.greenList = true;
   }
 
   const eventos = [];

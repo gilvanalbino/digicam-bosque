@@ -80,6 +80,19 @@
         </div>
       </div>
 
+      <!-- Evento que é uma saída sem entrada identificada: só existe a foto da saída -->
+      <div v-else-if="saidaDoEvento" class="mt-5 grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase text-green-700">Entrada</p>
+          <div class="mt-1 flex h-24 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">Sem entrada identificada</div>
+        </div>
+        <div>
+          <p class="text-xs font-bold uppercase text-red-700">Saída · {{ formatarData(saidaDoEvento.data) }}</p>
+          <img v-if="saidaDoEvento.imagem_carro" class="mt-1 rounded-lg" :src="`/images${saidaDoEvento.imagem_carro}`" alt="Foto da saída" />
+          <div v-else class="mt-1 flex h-24 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">Sem imagem</div>
+        </div>
+      </div>
+
       <!-- Histórico do veículo -->
       <h4 class="mt-5 text-sm font-bold text-gray-900">Histórico do veículo</h4>
       <p v-if="!historico" class="mt-2 text-sm text-gray-500">Carregando…</p>
@@ -96,18 +109,25 @@
               <tr><th class="px-3 py-2">Foto</th><th class="px-3 py-2">Entrada</th><th class="px-3 py-2">Saída</th><th class="px-3 py-2">Permanência</th></tr>
             </thead>
             <tbody class="divide-y divide-gray-200 bg-white">
-              <tr v-for="trafego in historico.trafegos" :key="trafego.id" :class="trafego.id === detalhe.trafego_id ? 'bg-indigo-50' : ''">
+              <tr v-for="linha in linhasHistorico" :key="linha.chave" :class="linha.doEvento ? 'bg-indigo-50' : ''">
                 <td class="px-3 py-1">
-                  <img v-if="trafego.imagem_thumb" class="h-10 w-10 rounded" :src="`/images${trafego.imagem_thumb}`" alt="" loading="lazy" />
+                  <img v-if="linha.miniatura" class="h-10 w-10 rounded" :src="`/images${linha.miniatura}`" alt="" loading="lazy" />
                 </td>
-                <td class="px-3 py-1 text-green-700">{{ formatarData(trafego.dataEntrada) }} <span class="text-xs">{{ nomePortaria(trafego.portaria_entrada_id) }}</span></td>
-                <td class="px-3 py-1 text-red-700">
-                  <template v-if="temSaidaLida(trafego)">{{ formatarData(trafego.dataSaida) }} <span class="text-xs">{{ nomePortaria(trafego.portaria_saida_id) }}</span></template>
-                  <span v-else class="text-gray-400">sem saída</span>
-                </td>
-                <td class="px-3 py-1">{{ temSaidaLida(trafego) ? calcularPermanencia(trafego.dataEntrada, trafego.dataSaida) : '' }}</td>
+                <template v-if="linha.trafego">
+                  <td class="px-3 py-1 text-green-700">{{ formatarData(linha.trafego.dataEntrada) }} <span class="text-xs">{{ nomePortaria(linha.trafego.portaria_entrada_id) }}</span></td>
+                  <td class="px-3 py-1 text-red-700">
+                    <template v-if="temSaidaLida(linha.trafego)">{{ formatarData(linha.trafego.dataSaida) }} <span class="text-xs">{{ nomePortaria(linha.trafego.portaria_saida_id) }}</span></template>
+                    <span v-else class="text-gray-400">sem saída</span>
+                  </td>
+                  <td class="px-3 py-1">{{ temSaidaLida(linha.trafego) ? calcularPermanencia(linha.trafego.dataEntrada, linha.trafego.dataSaida) : '' }}</td>
+                </template>
+                <template v-else>
+                  <td class="px-3 py-1 text-gray-400">sem entrada identificada</td>
+                  <td class="px-3 py-1 text-red-700">{{ formatarData(linha.saida.data) }} <span class="text-xs">{{ nomePortaria(linha.saida.Camera ? linha.saida.Camera.portaria_id : null) }}</span></td>
+                  <td class="px-3 py-1"></td>
+                </template>
               </tr>
-              <tr v-if="historico.trafegos.length === 0"><td colspan="4" class="px-3 py-2 text-gray-500">Nenhum tráfego registrado com esta placa.</td></tr>
+              <tr v-if="linhasHistorico.length === 0"><td colspan="4" class="px-3 py-2 text-gray-500">Nenhuma passagem registrada com esta placa.</td></tr>
             </tbody>
           </table>
         </div>
@@ -384,6 +404,7 @@ export default {
     const showDetalhe = ref(false);
     const detalhe = ref(null);
     const trafegoDoEvento = ref(null);
+    const saidaDoEvento = ref(null);
     const historico = ref(null);
     const motivo = ref('');
     const processando = ref(false);
@@ -438,9 +459,26 @@ export default {
       return linhas;
     });
 
+    // histórico do veículo: tráfegos (entradas, com ou sem saída) e saídas sem entrada identificada, do mais
+    // recente para o mais antigo
+    const linhasHistorico = computed(() => {
+      if (!historico.value) return [];
+      const eventoSaidaId = detalhe.value && detalhe.value.evidencias && detalhe.value.evidencias.evento ? detalhe.value.evidencias.evento.saida_id : null;
+      const dosTrafegos = (historico.value.trafegos || []).map((trafego) => ({
+        chave: `t${trafego.id}`, quando: new Date(trafego.dataEntrada).getTime(), trafego, miniatura: trafego.imagem_thumb,
+        doEvento: !!detalhe.value && trafego.id === detalhe.value.trafego_id,
+      }));
+      const dasSaidas = (historico.value.saidas || []).map((saida) => ({
+        chave: `s${saida.id}`, quando: new Date(saida.data).getTime(), saida, miniatura: saida.imagem_carro_thumb,
+        doEvento: !!eventoSaidaId && saida.id === eventoSaidaId,
+      }));
+      return [...dosTrafegos, ...dasSaidas].sort((a, b) => b.quando - a.quando);
+    });
+
     const abrir = async (alerta) => {
       detalhe.value = alerta;
       trafegoDoEvento.value = null;
+      saidaDoEvento.value = null;
       historico.value = null;
       motivo.value = '';
       // ModalDialog só reabre quando a prop muda
@@ -454,6 +492,7 @@ export default {
         if (ret.status === 'OK' && detalhe.value && detalhe.value.id === alerta.id) {
           detalhe.value = ret.anomalia;
           trafegoDoEvento.value = ret.trafego;
+          saidaDoEvento.value = ret.saida || null;
         }
         const hist = await obterHistoricoDaPlaca(token, clienteId(), alerta.placa);
         if (detalhe.value && detalhe.value.id === alerta.id) historico.value = hist;
@@ -510,6 +549,8 @@ export default {
       showDetalhe,
       detalhe,
       trafegoDoEvento,
+      saidaDoEvento,
+      linhasHistorico,
       historico,
       explicacoes,
       comparacoes,

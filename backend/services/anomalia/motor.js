@@ -363,7 +363,7 @@ const avaliarEvento = (evento, registro, referencia, estadoAnterior, p) => {
  */
 const processarPeriodo = (indice, de, ate, estados, p, { aoMudarDia = null, recentes = [] } = {}) => {
   const resumo = {
-    eventos: 0, provavel_erro_leitura: 0, sem_dados: 0, normal: 0, observacao: 0, revisao: 0, prioridade_alta: 0,
+    eventos: 0, green_list: 0, provavel_erro_leitura: 0, sem_dados: 0, normal: 0, observacao: 0, revisao: 0, prioridade_alta: 0,
     repetidos: 0,
   };
   const numeroDoDia = (iso) => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DIA_MS);
@@ -430,6 +430,11 @@ const processarPeriodo = (indice, de, ate, estados, p, { aoMudarDia = null, rece
       if (aoMudarDia) aoMudarDia(referencia);
     }
     resumo.eventos++;
+    // veículos da green list não são avaliados (as passagens deles continuam compondo a referência dos perfis)
+    if (indice.porPlaca.get(evento.chave).greenList) {
+      resumo.green_list++;
+      continue;
+    }
     const resultado = avaliarEvento(evento, indice.porPlaca.get(evento.chave), referencia, estados.get(evento.chave), p);
     if (resultado.ignorado) {
       resumo[resultado.ignorado]++;

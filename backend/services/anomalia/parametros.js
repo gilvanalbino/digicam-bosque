@@ -3,7 +3,7 @@
 // Parâmetros iniciais do detector de anomalias (docs/plano_anomalia.md). Todos são hipóteses a calibrar na
 // validação; qualquer mudança que altere resultados deve vir com nova VERSAO_MODELO.
 module.exports = {
-  VERSAO_MODELO: '1.0.0',
+  VERSAO_MODELO: '1.1.0',
 
   // janela do histórico usado como referência de cada evento
   JANELA_REFERENCIA_DIAS: 90,

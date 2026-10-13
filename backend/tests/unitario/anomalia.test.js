@@ -345,3 +345,17 @@ test('processamento: não usa dados posteriores ao evento', () => {
   const comFuturo = motor.processarPeriodo(indiceDe([...historico, hoje, ...depois]), base, base + DIA, new Map(), p);
   assert.deepEqual(JSON.parse(JSON.stringify(comFuturo.alertas)), JSON.parse(JSON.stringify(semFuturo.alertas)));
 });
+
+test('processamento: placa da green list não é avaliada', () => {
+  const trafegos = [...historicoRegular('ABC1D23'), trafego('ABC1D23', em(1, 8), 60)];
+  const semLista = prep.montarIndice({ trafegos, saidas: [] }, { tetoDuracaoS: p.TETO_DURACAO_S });
+  const comLista = prep.montarIndice({ trafegos, saidas: [], greenList: ['abc-1d23'] }, { tetoDuracaoS: p.TETO_DURACAO_S });
+  const avaliada = motor.processarPeriodo(semLista, base + DIA, base + 2 * DIA, new Map(), p);
+  const ignorada = motor.processarPeriodo(comLista, base + DIA, base + 2 * DIA, new Map(), p);
+  assert.equal(avaliada.alertas.length, 1);
+  assert.equal(ignorada.alertas.length, 0);
+  assert.equal(ignorada.resumo.green_list, ignorada.resumo.eventos);
+  // a marcação gravada no tráfego não basta: vale a green list atual
+  const soMarcado = prep.montarIndice({ trafegos: trafegos.map((t) => ({ ...t, in_whitelist: 1 })), saidas: [] }, { tetoDuracaoS: p.TETO_DURACAO_S });
+  assert.equal(motor.processarPeriodo(soMarcado, base + DIA, base + 2 * DIA, new Map(), p).alertas.length, 1);
+});

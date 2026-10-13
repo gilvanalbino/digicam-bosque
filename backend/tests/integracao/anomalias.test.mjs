@@ -201,6 +201,22 @@ ok(r.status === 'ERROR', 'métricas: operador comum não acessa', r);
 r = await adm('GET', '/anomalias/client/2/metricas');
 ok(r.status === 'ERROR', 'métricas: negadas para outro cliente', r);
 
+// ---------------- histórico de veículo que só aparece em saídas sem entrada identificada
+{
+  sql(`INSERT INTO Saidas_nao_identificadas (id,identificador_placa,placa,data,camera_id,client_id,status,imagem_carro,imagem_carro_thumb,createdAt,updatedAt) VALUES
+   (9001,'an-s1','SOS1A11',UTC_TIMESTAMP()-INTERVAL 2 DAY,2,1,'arquivada','/x/s1.jpg','/x/s1_thumb.jpg',NOW(),NOW()),
+   (9002,'an-s2','SOS1A11',UTC_TIMESTAMP()-INTERVAL 1 DAY,2,1,'pendente','/x/s2.jpg','/x/s2_thumb.jpg',NOW(),NOW()),
+   (9003,'an-s3','SOS1A11',UTC_TIMESTAMP()-INTERVAL 1 DAY,3,2,'pendente',NULL,NULL,NOW(),NOW())`);
+  r = await adm('GET', '/anomalias/client/1/placa/SOS1A11');
+  ok(r.trafegos.length === 0 && r.saidas.length === 2 && r.saidas[0].id === 9002 && r.saidas[0].imagem_carro_thumb === '/x/s2_thumb.jpg' && r.saidas[0].Camera.portaria_id === 1,
+    'histórico: placa sem tráfego traz as saídas sem entrada do próprio cliente, da mais recente para a mais antiga', r);
+  sql(`INSERT INTO Anomalias (id,client_id,chave_veiculo,chave_deduplicacao,tipo,ocorrido_em,score,motivos,evidencias,qualidade_dados,versao_modelo,status,createdAt,updatedAt)
+   SELECT 9900,1,'SOS1A11','teste-sos','dia',UTC_TIMESTAMP(),40,'[]','{"evento":{"saida_id":9002,"trafego_id":null}}','{}',versao_modelo,'ABERTA',NOW(),NOW() FROM Anomalias LIMIT 1`);
+  r = await adm('GET', '/anomalias/9900');
+  ok(r.status === 'OK' && r.trafego === null && r.saida && r.saida.id === 9002 && r.saida.imagem_carro === '/x/s2.jpg', 'detalhe: evento de saída sem entrada traz a saída com a foto', r);
+  sql('DELETE FROM Anomalias WHERE id=9900; DELETE FROM Saidas_nao_identificadas WHERE id IN (9001,9002,9003)');
+}
+
 // ---------------- cálculo sob demanda: o veículo é avaliado quando sai
 {
   const minutosAtras = (m) => new Date(Date.now() - m * 60000).toISOString().slice(0, 19).replace('T', ' ');
@@ -211,6 +227,16 @@ ok(r.status === 'ERROR', 'métricas: negadas para outro cliente', r);
   const novo = sql("SELECT trafego_id, score_duracao >= 60, status FROM Anomalias WHERE client_id=1 AND chave_veiculo='DEM1A11'");
   ok(x.primeira_execucao === false && x.alertas.novos === 1 && novo === '1998\t1\tABERTA', 'sob demanda: a saída de um veículo com permanência anormal gera o alerta dele', { x, novo });
   ok(sql("SELECT COUNT(*) FROM Anomalias WHERE client_id=1") === '2', 'sob demanda: só a placa que passou é avaliada', sql('SELECT chave_veiculo, score FROM Anomalias'));
+
+  // green list: a mesma saída, reavaliada com a placa na green list, não gera alerta
+  sql("DELETE FROM Anomalias WHERE chave_veiculo='DEM1A11'");
+  sql("INSERT INTO WhiteList (id,placa,nome,client_id,user_id,createdAt,updatedAt) SELECT 990,'DEM1A11','Morador',1,id,NOW(),NOW() FROM Users WHERE email='adm@bosque'");
+  r = job(`--modo=retroativo --cliente=1 --de=${diaLocal(-1)} --ate=${diaLocal(2)}`);
+  ok(r[0].resultado.avaliacao.green_list > 0 && sql("SELECT COUNT(*) FROM Anomalias WHERE chave_veiculo='DEM1A11'") === '0', 'green list: placa da green list não é avaliada nem gera alerta', r);
+  sql('DELETE FROM WhiteList WHERE id=990');
+  r = job(`--modo=retroativo --cliente=1 --de=${diaLocal(-1)} --ate=${diaLocal(2)}`);
+  // pode ser mais de um alerta quando a viagem de teste cruza a meia-noite (um por dia)
+  ok(Number(sql("SELECT COUNT(*) FROM Anomalias WHERE chave_veiculo='DEM1A11'")) >= 1, 'green list: fora da lista, a placa volta a ser avaliada', r);
 }
 
 sql(`DELETE FROM Anomalia_revisoes; DELETE FROM Anomalias; DELETE FROM Anomalia_estados; DELETE FROM Anomalia_referencias; DELETE FROM Anomalia_execucoes;

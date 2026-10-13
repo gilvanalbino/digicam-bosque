@@ -136,8 +136,9 @@ Calculados por placa sobre a janela de referência:
 | `permanencia` | 10 ou mais viagens válidas, ao menos 75% acima de 10 minutos |
 | `misto` | 10 ou mais viagens válidas, sem predominância |
 
-A green list e a red list entram como contexto exibido no alerta, não como perfil. A referência do perfil é a
-distribuição conjunta das placas daquele perfil.
+A red list entra como contexto exibido no alerta, não como perfil. As placas da green list não são avaliadas
+(decisão de 13/10/2026; ver item 16.3), mas as passagens delas continuam compondo a referência dos perfis. A
+referência do perfil é a distribuição conjunta das placas daquele perfil.
 
 ### 6.3 Referência aplicável
 
@@ -405,9 +406,11 @@ Janela de 90 dias até 10/10/2026, 60.130 tráfegos e 92.161 saídas sem entrada
 | Incremental | cursor | cursor com margem de consolidação de 10 minutos | saídas sem entrada só são gravadas 3 minutos depois da leitura |
 | Usuário de banco próprio | recomendado | não criado: o job usa o usuário da aplicação | fica para a implantação |
 | Primeira execução | não especificada; implementada com carga dos últimos 30 dias | **sem carga retroativa** (13/10/2026): só são avaliados os veículos que entram ou saem dali em diante; ciclo de 1 minuto no HML | decisão do usuário: calcular sob demanda, não em lote sobre o passado |
+| Green list (P2) | entra na análise, com o contexto exibido | **não é avaliada** (13/10/2026): placa que está na green list atual do cliente não gera alerta; modelo `1.1.0` | decisão do usuário |
 | Baixa manual | categoria própria, excluída | conta como **entrada sem saída**, junto com a viagem aberta (13/10/2026); o histórico do veículo mostra "sem saída" | decisão do usuário: sem leitura de câmera, a saída não foi observada. A pontuação não muda |
 
-Os parâmetros estão todos em `backend/services/anomalia/parametros.js`, com a versão do modelo (`1.0.0`).
+Os parâmetros estão todos em `backend/services/anomalia/parametros.js`, com a versão do modelo (`1.1.0` desde que a
+green list deixou de ser avaliada; `1.0.0` antes).
 
 ### 16.4 Volume observado
 
@@ -434,8 +437,8 @@ não foram recalculados depois da correção.
 
 - **Calibração com a equipe (Fase 6):** revisar uma amostra de alertas e de eventos não alertados, definir o
   volume aceitável (P4) e o critério de relevância (P9), ajustar limiares e pesos.
-- **Decisões pendentes do item 15:** foram seguidas as recomendações (green list entra com o contexto exibido;
-  só administradores veem e revisam; sem feriados; fuso do container). Retenção e LGPD (P5) continuam abertas:
+- **Decisões pendentes do item 15:** foram seguidas as recomendações (só administradores veem e revisam; sem
+  feriados; fuso do container), exceto na green list, que não é avaliada. Retenção e LGPD (P5) continuam abertas:
   só as referências têm limpeza automática (180 dias).
 - **Implantação em produção (Fase 7):** depende de publicar a conciliação nova, aplicar as migrações e subir o
   job em projeto compose próprio, com usuário de banco de leitura.
