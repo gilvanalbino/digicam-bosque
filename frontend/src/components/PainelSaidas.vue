@@ -176,7 +176,7 @@ import useTrafegos from '../composables/useTrafegos';
 import useSaidasNaoIdentificadas, { podeAssociar } from '../composables/useSaidasNaoIdentificadas';
 
 import { formatarData, formatarHora, calcularPermanencia } from '../utils/dateUtil';
-import { diferencasPlacas as diferencas } from '../utils/placaUtil';
+import { diferencasPlacas as diferencas, placaSugerida } from '../utils/placaUtil';
 
 import ModalDialog from './ModalDialog.vue';
 
@@ -199,7 +199,7 @@ export default {
       const mapa = {};
       for (const saida of saidas.value) {
         const entradas = useTrafegos.state.trafegos.lista
-          .filter((entrada) => podeAssociar(entrada, saida) && diferencas(entrada.placa, saida.placa) <= 2)
+          .filter((entrada) => podeAssociar(entrada, saida) && placaSugerida(entrada, saida))
           // a mais parecida primeiro; no empate, a entrada mais recente
           .sort(
             (a, b) =>
@@ -267,7 +267,7 @@ export default {
 
     // destaca as saídas com placa parecida com a da entrada arrastada
     const placaParecida = (saida) =>
-      podeAssociar(entradaArrastada.value, saida) && diferencas(entradaArrastada.value.placa, saida.placa) <= 2;
+      podeAssociar(entradaArrastada.value, saida) && placaSugerida(entradaArrastada.value, saida);
 
     const permitirSoltarEntrada = (event, saida) => {
       if (podeAssociar(entradaArrastada.value, saida)) {

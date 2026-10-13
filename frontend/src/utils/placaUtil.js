@@ -12,3 +12,13 @@ export const diferencasPlacas = (placaA = '', placaB = '') => {
   }
   return anterior[placaB.length];
 };
+
+const mesmoDia = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+
+// sugestão de associação entre uma entrada em travessia e uma saída sem entrada: com 1 caractere de
+// diferença vale qualquer entrada (o sistema já associa sozinho esses casos na leitura da câmera); com 2,
+// só entradas do mesmo dia da saída, e a decisão é do operador
+export const placaSugerida = (entrada, saida) => {
+  const diferencas = diferencasPlacas(entrada.placa, saida.placa);
+  return diferencas <= 1 || (diferencas === 2 && mesmoDia(entrada.dataEntrada, saida.data));
+};

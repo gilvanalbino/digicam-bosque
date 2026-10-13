@@ -303,6 +303,17 @@ if (BACKEND_CONTAINER) {
   ok(x === null, 'placa próxima: placa distante não é associada', x);
   x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'APY1A28',new Date(Date.now()-3600000)).then((e)=>fim(e&&e.id))`);
   ok(x === null, 'placa próxima: saída anterior à entrada não é associada', x);
+  // com 2 caracteres de diferença o sistema não associa sozinho (o painel só sugere); com 1, associa
+  const hojeLocal = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
+  const instante = (dias, horaUtc) => new Date(new Date(`${hojeLocal}T${horaUtc}Z`).getTime() + dias * 86400000).toISOString();
+  sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,createdAt,updatedAt) VALUES (75,'BRY2C45','${hojeLocal} 15:00:00',NULL,'cruzar',1,1,NOW(),NOW())`);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'BRY2C99',new Date('${instante(0, '15:05:00')}')).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'placa próxima: 2 caracteres de diferença não são associados automaticamente, nem no mesmo dia', x);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'BRY2C99',new Date('${instante(1, '03:10:00')}')).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'placa próxima: 2 caracteres de diferença não são associados em outro dia', x);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'BRY2C49',new Date('${instante(1, '03:10:00')}')).then((e)=>fim(e&&e.id))`);
+  ok(x === 75, 'placa próxima: 1 caractere de diferença continua valendo para entrada de outro dia', x);
+  sql('DELETE FROM Trafegos WHERE id=75');
   x = noBackend(`${base} s.associarAutomaticamente(1,{placa:'APY1A28',identificador_placa:'s-47',data:new Date(),camera_id:2,client_id:1,imagem_carro:'/x/s47.jpg'},71,1).then((t)=>fim(t&&t.id))`);
   ok(x === 71, 'associação automática: registra a saída na entrada de placa próxima', x);
   const feito = sql("SELECT t.placa_saida, t.dataSaida IS NOT NULL, t.saida_automatica, t.imagem_saida, s.status, s.associacao_automatica FROM Trafegos t JOIN Saidas_nao_identificadas s ON s.trafego_id=t.id WHERE t.id=71");

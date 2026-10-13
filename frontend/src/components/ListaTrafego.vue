@@ -52,7 +52,7 @@ import useTrafegos from '../composables/useTrafegos';
 import useMoradores from '../composables/useMoradores'
 import useSaidasNaoIdentificadas, { podeAssociar } from '../composables/useSaidasNaoIdentificadas';
 
-import { diferencasPlacas } from '../utils/placaUtil';
+import { placaSugerida } from '../utils/placaUtil';
 
 import ModalDialog from '../components/ModalDialog.vue';
 import TrafegoCard from '../components/TrafegoCard.vue';
@@ -118,7 +118,7 @@ export default {
     // destaca as entradas com placa parecida com a da saída selecionada ou arrastada
     const placaParecida = (trafego) => {
       const saida = saidaEmUso();
-      return podeAssociar(trafego, saida) && diferencasPlacas(trafego.placa, saida.placa) <= 2;
+      return podeAssociar(trafego, saida) && placaSugerida(trafego, saida);
     };
 
     const permitirSoltar = (event, trafego) => {

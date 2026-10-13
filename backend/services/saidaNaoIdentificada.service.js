@@ -281,8 +281,10 @@ const associar = async (loggedUserId, id, trafegoId) => {
   });
 };
 
-// diferença máxima (distância de edição) entre as placas para a saída ser associada automaticamente
-const MAX_DIFERENCAS_PLACA_PROXIMA = 2;
+// diferença máxima (distância de edição) entre as placas para a saída ser associada automaticamente.
+// Com 2 caracteres de diferença o sistema não associa sozinho: o painel de saídas só sugere a entrada (do
+// mesmo dia) e o operador decide (frontend/src/utils/placaUtil.js, placaSugerida).
+const MAX_DIFERENCAS_PLACA_PROXIMA = 1;
 
 /**
  * Procura, entre os veículos em travessia do cliente (os mesmos da aba Em Travessia), a entrada de placa mais
