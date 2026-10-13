@@ -75,8 +75,13 @@ export default {
   setup(props) {
     const classeAlerta = computed(() => {
       const trafego = props.trafego;
-      if (trafego.permanencia > '00:03:00' && trafego.destino === 'cruzar' && !trafego.in_whitelist) {
-        return 'alarm';
+      // em travessia há mais de 3 minutos: o vermelho escurece com o tempo (3–10 min, 10 min–2 h, mais de 2 h)
+      if (trafego.destino === 'cruzar' && !trafego.in_whitelist) {
+        const [horas, minutos, segundos] = String(trafego.permanencia || '').split(':').map(Number);
+        const permanenciaS = horas * 3600 + minutos * 60 + segundos;
+        if (permanenciaS > 2 * 3600) return 'alarm-longo';
+        if (permanenciaS > 10 * 60) return 'alarm';
+        if (permanenciaS > 3 * 60) return 'alarm-recente';
       }
       if (trafego.in_whitelist) {
         return 'white-list';
@@ -96,8 +101,16 @@ export default {
 </script>
 
 <style>
+  .alarm-recente {
+    background-color: #ffd9d9;
+  }
+
   .alarm {
     background-color: #ffadad;
+  }
+
+  .alarm-longo {
+    background-color: #ff8a8a;
   }
 
   .white-list {
