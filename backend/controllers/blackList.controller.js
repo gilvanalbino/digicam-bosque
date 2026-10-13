@@ -12,8 +12,8 @@ class BlackListController {
   /**
    * Get all blackList by client_id
    */
-  async listBlackListByClientId(loggedUserId, clientId) {
-    return await blackListService.list(loggedUserId, clientId);
+  async listBlackListByClientId(loggedUserId, clientId, filtros) {
+    return await blackListService.list(loggedUserId, clientId, filtros);
   }
 
   /**

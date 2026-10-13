@@ -6,10 +6,16 @@
       </button>
     </template>
 
-    <div class="mt-5 flex flex-col">
+    <div class="mt-5 flex flex-wrap items-center gap-3">
+      <input type="text" v-model="texto" placeholder="Pesquisar por placa, motivo, marca ou modelo" aria-label="Pesquisar por placa, motivo, marca ou modelo"
+        class="block w-full sm:w-96 shadow-sm sm:text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+      <span v-if="carregado" class="text-sm text-gray-500">{{ total }} veículo(s)</span>
+    </div>
+
+    <div class="mt-3 flex flex-col">
       <div class="my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
         <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-          <div v-if="blackList.length===0">Nenhum veículo cadastrado</div>
+          <div v-if="carregado && blackList.length===0">{{ texto.trim() ? 'Nenhum veículo encontrado' : 'Nenhum veículo cadastrado' }}</div>
           <div  v-if="blackList.length>0" class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
@@ -21,10 +27,7 @@
                     Marca / Modelo
                   </th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Endereço
+                    Motivo
                   </th>
                   <th scope="col" class="relative px-6 py-3">
                     <span class="sr-only">Edit</span>
@@ -72,15 +75,18 @@
       </div>
     </div>
 
+    <Paginacao :page="page" :total="total" :pageSize="pageSize" @change="carregar" />
+
   </Main>
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { notify } from "notiwind"
 
 import Main from '../layout/Main.vue'
+import Paginacao from '../../components/Paginacao.vue'
 
 import { listarBlackList, removerBlackList } from '../../database/dbBlackList';
 
@@ -88,7 +94,7 @@ import useClientes from '../../composables/useClientes'
 import useLogin from '../../composables/useLogin';
 
 export default {
-  components: {Main},
+  components: {Main, Paginacao},
   setup() {
     const router = useRouter();
 
@@ -107,7 +113,8 @@ export default {
             title: "Sucesso",
             text: "Veículo removido com sucesso!"
           }, 4000)
-          blackList.value = await listarBlackList(useLogin.state.auth.token, useClientes.state.clientes.selecionado.id);
+          // se a página ficou vazia depois da remoção, volta uma
+          await carregar(blackList.value.length === 1 && page.value > 1 ? page.value - 1 : page.value);
         } catch (error) {
           console.log("ERRO removendp veículo", error);
           notify({
@@ -121,18 +128,55 @@ export default {
     }
 
     const blackList = ref([]);
+    const texto = ref('');
+    const page = ref(1);
+    const pageSize = 50;
+    const total = ref(0);
+    const carregado = ref(false);
 
-    onMounted(async ()=>{
-      const wl = await listarBlackList(useLogin.state.auth.token, useClientes.state.clientes.selecionado.id);
-      console.log("BlackList = ", wl)
-      blackList.value = wl;
-      if (!blackList.value) {
-        blackList.value = []
+    // a resposta de uma pesquisa antiga não pode sobrescrever a de uma mais nova
+    let pedido = 0;
+    const carregar = async (pagina = 1) => {
+      const meuPedido = ++pedido;
+      try {
+        const resposta = await listarBlackList(useLogin.state.auth.token, useClientes.state.clientes.selecionado.id, {
+          texto: texto.value.trim(),
+          page: pagina,
+          pageSize,
+        });
+        if (meuPedido !== pedido) return;
+        blackList.value = resposta.rows || [];
+        total.value = resposta.total || 0;
+        page.value = resposta.page || pagina;
+        carregado.value = true;
+      } catch (error) {
+        console.log("ERRO carregando a red list", error);
+        notify({
+          group: "error",
+          title: "Error",
+          text: "Erro carregando a lista!"
+        }, 4000)
       }
-    })
+    }
+
+    // pesquisa enquanto digita, com uma pequena espera
+    let espera = null;
+    watch(texto, () => {
+      clearTimeout(espera);
+      espera = setTimeout(() => carregar(1), 300);
+    });
+    onBeforeUnmount(() => clearTimeout(espera));
+
+    onMounted(() => carregar(1))
 
     return {
       blackList,
+      texto,
+      page,
+      pageSize,
+      total,
+      carregado,
+      carregar,
       adicionar,
       remover
     }

@@ -44,7 +44,7 @@ class BlackListRoutes extends BaseRoute {
       method: 'GET',
       options: {
         handler: async (request, h) => {
-          return blackListController.listBlackListByClientId(request.loggedUserId, request.params.id);
+          return blackListController.listBlackListByClientId(request.loggedUserId, request.params.id, request.query);
         },
         description: 'Obtem todos as blackList cadastradas para o cliente informado',
         notes: 'Obtem a lista de todas as blackList cadastrados no sistema para o clientes informado',
@@ -52,6 +52,11 @@ class BlackListRoutes extends BaseRoute {
         validate: {
           params: Joi.object({
             id: Joi.number().required(),
+          }),
+          query: Joi.object({
+            texto: Joi.string().allow('').max(100).description('Filtra por placa, motivo, marca ou modelo (contém)'),
+            page: Joi.number().integer().min(1).description('Com este parâmetro, retorna { rows, total, page, pageSize }'),
+            pageSize: Joi.number().integer().min(1).max(200),
           }),
           headers: Joi.object({
             authorization: Joi.string().required(),

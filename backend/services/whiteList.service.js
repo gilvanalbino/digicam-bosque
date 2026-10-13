@@ -1,23 +1,42 @@
 'use strict';
+const { Op } = require('sequelize');
 const { User, WhiteList } = require('../models');
 
-const list = async (loggedUserId, clientId) => {
+const TAMANHO_PAGINA_PADRAO = 50;
+
+/**
+ * Lista os veículos. "texto" filtra por placa, nome, marca ou modelo (contém, sem diferenciar maiúsculas).
+ * Com "page", retorna { rows, total, page, pageSize }; sem ele, o array completo, como antes.
+ */
+const list = async (loggedUserId, clientId, { texto, page, pageSize } = {}) => {
   const loggedUser = await User.findByPk(loggedUserId);
   if (!loggedUser) {
     throw Error('Informar usuário logado');
   } else {
+    const paginado = !!page;
+    const tamanho = pageSize || TAMANHO_PAGINA_PADRAO;
     if (loggedUser.admin || loggedUser.client_id === clientId) {
-      let where = {};
+      const where = {};
       if (clientId) {
-        where = {
-          where: {
-            client_id: clientId,
-          },
-        };
+        where.client_id = clientId;
       }
-      return await WhiteList.findAll(where);
+      const termo = (texto || '').trim();
+      if (termo) {
+        const contem = { [Op.like]: `%${termo.replace(/[\\%_]/g, '\\$&')}%` };
+        where[Op.or] = [{ placa: contem }, { nome: contem }, { marca: contem }, { modelo: contem }];
+      }
+      if (!paginado) {
+        return await WhiteList.findAll({ where });
+      }
+      const { rows, count } = await WhiteList.findAndCountAll({
+        where,
+        order: [['id', 'ASC']],
+        limit: tamanho,
+        offset: (page - 1) * tamanho,
+      });
+      return { rows, total: count, page, pageSize: tamanho };
     } else {
-      return [];
+      return paginado ? { rows: [], total: 0, page, pageSize: tamanho } : [];
     }
   }
 };

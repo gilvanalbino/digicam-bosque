@@ -373,6 +373,138 @@ ok(r.trafegos.length === 0 && r.saidasSemEntrada.length === 0, 'linha do tempo: 
   sql('DELETE FROM WhiteList WHERE id=901');
 }
 
+// ---------------- green list e red list: paginação e pesquisa por placa ou nome
+{
+  const valores = [];
+  for (let i = 1; i <= 7; i++) valores.push(`(${910 + i},'PAG${i}A11','Morador ${i === 3 ? 'Zuleica 100%' : 'Comum'}',1,${opId},NOW(),NOW())`);
+  valores.push(`(920,'PAG9A11','Zuleica Outro',2,${opId},NOW(),NOW())`);
+  sql(`INSERT INTO WhiteList (id,placa,nome,client_id,user_id,createdAt,updatedAt) VALUES ${valores.join(',')}`);
+  sql("UPDATE WhiteList SET marca='Marcateste', modelo='Modeloteste' WHERE id=912; UPDATE WhiteList SET marca='Marcateste' WHERE id=913");
+  sql(`INSERT INTO BlackList (id,placa,motivo,client_id,user_id,createdAt,updatedAt) VALUES (911,'RED1A11','Furto',1,${opId},NOW(),NOW()),(912,'RED2A11','Clonado',1,${opId},NOW(),NOW()),(913,'RED3A11','Furto',2,${opId},NOW(),NOW())`);
+
+  r = await op('GET', '/whiteList/client/1');
+  ok(Array.isArray(r) && r.filter((v) => /^PAG/.test(v.placa)).length === 7, 'green list: sem "page", continua devolvendo o array completo', r.length);
+  const totalGreen = r.length;
+  r = await op('GET', '/whiteList/client/1?page=1&pageSize=3');
+  ok(r.rows.length === 3 && r.total === totalGreen && r.page === 1 && r.pageSize === 3, 'green list: primeira página com total', r);
+  const primeiraPagina = ids(r.rows);
+  r = await op('GET', '/whiteList/client/1?page=2&pageSize=3');
+  ok(r.rows.length === 3 && ids(r.rows) !== primeiraPagina && r.page === 2, 'green list: segunda página traz outros veículos', r);
+  r = await op('GET', '/whiteList/client/1?page=1&texto=pag');
+  ok(r.total === 7 && r.rows.every((v) => /^PAG/.test(v.placa)), 'green list: pesquisa por parte da placa, sem diferenciar maiúsculas', r);
+  r = await op('GET', '/whiteList/client/1?page=1&texto=zuleica');
+  ok(r.total === 1 && r.rows[0].placa === 'PAG3A11', 'green list: pesquisa por nome, só do próprio cliente', r);
+  r = await op('GET', `/whiteList/client/1?page=1&texto=${encodeURIComponent('100%')}`);
+  ok(r.total === 1 && r.rows[0].placa === 'PAG3A11', 'green list: "%" na pesquisa é texto, não curinga', r);
+  r = await op('GET', '/whiteList/client/1?page=1&texto=marcat');
+  ok(r.total === 2 && ids(r.rows) === '912,913', 'green list: pesquisa por marca', r);
+  r = await op('GET', '/whiteList/client/1?page=1&texto=modelot');
+  ok(r.total === 1 && r.rows[0].id === 912, 'green list: pesquisa por modelo', r);
+  r = await op('GET', '/whiteList/client/1?page=1&texto=naoexiste');
+  ok(r.total === 0 && r.rows.length === 0, 'green list: pesquisa sem resultado', r);
+  r = await op('GET', '/whiteList/client/2?page=1');
+  ok(r.total === 0 && r.rows.length === 0, 'green list: operador não vê a lista de outro cliente', r);
+
+  r = await op('GET', '/blackList/client/1?page=1&pageSize=1');
+  ok(r.rows.length === 1 && r.total >= 2, 'red list: paginação', r);
+  r = await op('GET', '/blackList/client/1?page=1&texto=red2');
+  ok(r.total === 1 && r.rows[0].placa === 'RED2A11', 'red list: pesquisa por placa', r);
+  r = await op('GET', '/blackList/client/1?page=1&texto=furto');
+  ok(r.total === 1 && r.rows[0].placa === 'RED1A11', 'red list: pesquisa por motivo, só do próprio cliente', r);
+  sql("UPDATE BlackList SET marca='Marcateste', modelo='Modeloteste' WHERE id=912");
+  r = await op('GET', '/blackList/client/1?page=1&texto=marcat');
+  const porMarca = r;
+  r = await op('GET', '/blackList/client/1?page=1&texto=modelot');
+  ok(porMarca.total === 1 && porMarca.rows[0].id === 912 && r.total === 1 && r.rows[0].id === 912, 'red list: pesquisa por marca e por modelo', { porMarca, r });
+  r = await op('GET', '/blackList/client/1');
+  ok(Array.isArray(r), 'red list: sem "page", continua devolvendo o array completo', r);
+
+  sql('DELETE FROM WhiteList WHERE id BETWEEN 911 AND 920; DELETE FROM BlackList WHERE id BETWEEN 911 AND 913');
+}
+
+// ---------------- green list: importação de planilha Excel
+if (BACKEND_CONTAINER) {
+  // a planilha é gerada dentro do container do backend, que tem o exceljs
+  const planilha = (linhas) => {
+    const codigo = `const E=require('exceljs');const w=new E.Workbook();const a=w.addWorksheet('Veiculos');JSON.parse(Buffer.from('${Buffer.from(JSON.stringify(linhas)).toString('base64')}','base64').toString()).forEach((l)=>a.addRow(l));w.xlsx.writeBuffer().then((b)=>{process.stdout.write(Buffer.from(b).toString('base64'))})`;
+    return Buffer.from(execSync(`docker exec -i -w /app ${BACKEND_CONTAINER} node -e "${codigo}"`, { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim(), 'base64');
+  };
+  const enviar = async (token, cliente, conteudo, campo = 'arquivo') => {
+    const limite = '----teste' + Date.now();
+    const corpo = Buffer.concat([
+      Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="${campo}"; filename="veiculos.xlsx"\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n`),
+      conteudo,
+      Buffer.from(`\r\n--${limite}--\r\n`),
+    ]);
+    const resposta = await fetch(`${BASE}/whiteList/client/${cliente}/importar`, {
+      method: 'POST',
+      headers: { authorization: token, 'Content-Type': `multipart/form-data; boundary=${limite}` },
+      body: corpo,
+    });
+    const texto = await resposta.text();
+    try { return JSON.parse(texto); } catch { return texto; }
+  };
+  sql(`INSERT INTO WhiteList (id,placa,marca,modelo,nome,endereco,numero,complemento,client_id,user_id,createdAt,updatedAt) VALUES
+   (930,'IMP1A11','Fiat','Uno','Nome Antigo','Rua Velha','1','',1,${opId},NOW(),NOW()),
+   (931,'IMP1A12','VW','Gol','Igual','Rua Igual','2','',1,${opId},NOW(),NOW()),
+   (932,'IMP1A13','Outro','Cliente','Outro cliente','Rua','3','',2,${opId},NOW(),NOW())`);
+  sql(`INSERT INTO Trafegos (id,placa,dataEntrada,destino,client_id,portaria_entrada_id,createdAt,updatedAt) VALUES (80,'IMP1B34',UTC_TIMESTAMP()-INTERVAL 3 DAY,'cruzar',1,1,NOW(),NOW())`);
+  const arquivo = planilha([
+    ['Placa', 'Marca', 'Modelo', 'Nome', 'Endereco', 'Número', 'Complemento'],
+    ['imp-1a11', 'Fiat', 'Argo', 'Nome Novo', 'Rua Nova', 10, 'Casa 2'], // já cadastrada: atualiza
+    ['IMP1A12', 'VW', 'Gol', 'Igual', 'Rua Igual', '2', ''], // já cadastrada, sem mudança
+    ['IMP1A13', 'Toyota', 'Yaris', 'Do cliente 1', 'Rua A', '5', ''], // existe só no outro cliente: inclui
+    ['IMP1B34', 'Nissan', 'Kicks', 'Maria', 'Rua B', '7', 'Fundos'], // nova, placa Mercosul com tráfego anterior
+    [],
+    ['XX', 'Erro', 'Placa', 'curta', '', '', ''],
+    ['', 'Sem', 'Placa', 'x', '', '', ''],
+    ['IMP1B34', 'Repetida', 'x', 'x', '', '', ''],
+  ]);
+  r = await enviar(tokenOp, 1, arquivo);
+  ok(r.status === 'OK' && r.incluidos === 2 && r.atualizados === 1 && r.inalterados === 1 && r.linhas_lidas === 7, 'importação: inclui as novas, atualiza a já cadastrada e ignora o cabeçalho e a linha vazia', r);
+  ok(r.erros.length === 3 && r.erros.map((e) => e.linha).join(',') === '7,8,9' && /padrão/.test(r.erros[0].motivo) && /não informada/.test(r.erros[1].motivo) && /repetida/i.test(r.erros[2].motivo),
+    'importação: linhas inválidas vêm listadas com número e motivo, sem impedir as demais', r.erros);
+  ok(sql("SELECT CONCAT_WS('|',placa,modelo,nome,endereco,numero,complemento) FROM WhiteList WHERE id=930") === 'IMP1A11|Argo|Nome Novo|Rua Nova|10|Casa 2', 'importação: placa já cadastrada recebe os dados da planilha', sql('SELECT * FROM WhiteList WHERE id=930'));
+  ok(sql("SELECT CONCAT_WS('|',marca,modelo,nome,endereco,numero,complemento,user_id) FROM WhiteList WHERE client_id=1 AND placa='IMP1B34'") === `Nissan|Kicks|Maria|Rua B|7|Fundos|${opId}`, 'importação: veículo novo gravado com as colunas na ordem pedida');
+  ok(sql("SELECT COUNT(*) FROM WhiteList WHERE placa='IMP1A13'") === '2' && sql('SELECT nome FROM WhiteList WHERE id=932') === 'Outro cliente', 'importação: não mexe no cadastro de outro cliente');
+  ok(sql('SELECT in_whitelist FROM Trafegos WHERE id=80') === '1', 'importação: tráfego anterior da placa nova passa a constar na green list, como no cadastro manual');
+  r = await enviar(tokenOp, 1, arquivo);
+  ok(r.incluidos === 0 && r.atualizados === 0 && r.inalterados === 4, 'importação: reenviar a mesma planilha não duplica nem altera', r);
+  r = await enviar(tokenOp, 2, arquivo);
+  ok(r.status === 'ERROR' && sql("SELECT COUNT(*) FROM WhiteList WHERE client_id=2 AND placa LIKE 'IMP%'") === '1', 'importação: operador não importa para outro cliente', r);
+  r = await enviar(tokenOp, 1, Buffer.from('isto não é uma planilha'));
+  ok(r.status === 'ERROR' && /xlsx/.test(r.message), 'importação: arquivo que não é Excel é recusado com mensagem', r);
+  r = await enviar(tokenOp, 1, planilha([['Placa', 'Marca', 'Modelo', 'Nome', 'Endereco', 'Número', 'Complemento']]));
+  ok(r.status === 'ERROR' && /Nenhum veículo encontrado/.test(r.message), 'importação: planilha só com cabeçalho avisa que não achou veículos', r);
+  r = await enviar(tokenOp, 1, arquivo, 'outro');
+  ok(r.status === 'ERROR', 'importação: sem o campo "arquivo", recusa', r);
+
+  // o tráfego aponta para o veículo: sai antes dele
+  sql("DELETE FROM Trafegos WHERE id=80; DELETE FROM WhiteList WHERE placa LIKE 'IMP%'");
+}
+
+// ---------------- troca da própria senha
+{
+  const senhaOutro = sql("SELECT password FROM Users WHERE email='system@digicam.com.br'");
+  r = await op('POST', '/users/me/senha', { senhaAtual: 'errada', novaSenha: 'novaSenha123' });
+  ok(r.status === 'ERROR' && /atual incorreta/.test(r.message), 'troca de senha: recusa a senha atual errada', r);
+  r = await op('POST', '/users/me/senha', { senhaAtual: 'op123', novaSenha: 'curta' });
+  ok(r.status === 'ERROR' && /pelo menos 8/.test(r.message), 'troca de senha: recusa senha nova curta', r);
+  ok(!!(await login('op@bosque', 'op123')), 'troca de senha: tentativas recusadas não mudam a senha');
+  r = await op('POST', '/users/me/senha', { senhaAtual: 'op123', novaSenha: 'novaSenha123' });
+  ok(r.status === 'OK', 'troca de senha: aceita com a senha atual correta', r);
+  ok(!(await login('op@bosque', 'op123')) && !!(await login('op@bosque', 'novaSenha123')), 'troca de senha: a antiga deixa de valer e a nova entra');
+  ok(sql("SELECT password FROM Users WHERE email='system@digicam.com.br'") === senhaOutro && sql("SELECT password NOT LIKE '%novaSenha%' FROM Users WHERE email='op@bosque'") === '1', 'troca de senha: só a do próprio usuário muda, gravada cifrada');
+  r = await op('POST', '/users/me/senha', { senhaAtual: 'novaSenha123', novaSenha: 'novaSenha123' });
+  ok(r.status === 'ERROR' && /diferente/.test(r.message), 'troca de senha: nova igual à atual é recusada', r);
+  const semLogin = await fetch(`${BASE}/users/me/senha`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senhaAtual: 'x', novaSenha: 'yyyyyyyyy' }) });
+  ok(!/"status":"OK"/.test(await semLogin.text()), 'troca de senha: exige estar logado');
+  // devolve a senha original para as próximas execuções
+  r = await op('POST', '/users/me/senha', { senhaAtual: 'novaSenha123', novaSenha: 'temporaria123' });
+  sql(`UPDATE Users SET password='$2b$08$QdqRjbgPFTGOCf/zZmr3L.zL6asYkZ7D0gvJfD2DSeLf5dlmLvN1e' WHERE email='op@bosque'`);
+  ok(!!(await login('op@bosque', 'op123')), 'troca de senha: senha de teste restaurada');
+}
+
 // ---------------- saída manual (rota existente) continua funcionando
 r = await op('POST', '/trafegos/saidaManual/2/1', {});
 r = await op('GET', '/trafegos/client/1?status=servico');

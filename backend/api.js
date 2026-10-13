@@ -81,7 +81,7 @@ const init = async () => {
     ...mapRoutes(new AnomaliaRoutes(CONTEXT), AnomaliaRoutes.methods()),
     ...mapRoutes(new RelatoriosRoutes(CONTEXT), RelatoriosRoutes.methods()),
     ...mapRoutes(new WhiteListRoutes(CONTEXT), WhiteListRoutes.methods()),
-    ...mapRoutes(new BlackListRoutes(CONTEXT), WhiteListRoutes.methods()),
+    ...mapRoutes(new BlackListRoutes(CONTEXT), BlackListRoutes.methods()),
     ...mapRoutes(new HealthRoutes(CONTEXT), HealthRoutes.methods()),
   ]);
 

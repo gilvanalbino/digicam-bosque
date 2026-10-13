@@ -17,10 +17,11 @@ export const inserirWhiteList = (token, { placa, marca, modelo, nome, endereco, 
   });
 };
 
-export const listarWhiteList = (token, client_id) => {
+// com "page" nos filtros, a resposta é { rows, total, page, pageSize }; sem ele, o array completo
+export const listarWhiteList = (token, client_id, filtros = {}) => {
   return new Promise((resolve, reject) => {
     api
-      .get(`/whiteList/client/${client_id}`, { headers: { authorization: token } })
+      .get(`/whiteList/client/${client_id}`, { headers: { authorization: token }, params: filtros })
       .then((response) => {
         resolve(response.data);
       })
@@ -70,6 +71,22 @@ export const removerWhiteList = (token, id) => {
     };
     api
       .delete(`/whiteList/${id}`, options)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+};
+
+// envia a planilha Excel (.xlsx); a resposta traz { incluidos, atualizados, inalterados, erros }
+export const importarWhiteList = (token, client_id, arquivo) => {
+  return new Promise((resolve, reject) => {
+    const dados = new FormData();
+    dados.append('arquivo', arquivo);
+    api
+      .post(`/whiteList/client/${client_id}/importar`, dados, { headers: { authorization: token } })
       .then((response) => {
         resolve(response.data);
       })

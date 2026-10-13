@@ -17,10 +17,11 @@ export const inserirBlackList = (token, { placa, marca, modelo, motivo, client_i
   });
 };
 
-export const listarBlackList = (token, client_id) => {
+// com "page" nos filtros, a resposta é { rows, total, page, pageSize }; sem ele, o array completo
+export const listarBlackList = (token, client_id, filtros = {}) => {
   return new Promise((resolve, reject) => {
     api
-      .get(`/blackList/client/${client_id}`, { headers: { authorization: token } })
+      .get(`/blackList/client/${client_id}`, { headers: { authorization: token }, params: filtros })
       .then((response) => {
         resolve(response.data);
       })

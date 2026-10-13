@@ -1,5 +1,6 @@
 const whiteListService = require('../services/whiteList.service');
 const trafegoService = require('../services/trafego.service');
+const whiteListImportacaoService = require('../services/whiteListImportacao.service');
 
 class WhiteListController {
   /**
@@ -12,8 +13,8 @@ class WhiteListController {
   /**
    * Get all whiteList by client_id
    */
-  async listWhiteListByClientId(loggedUserId, clientId) {
-    return await whiteListService.list(loggedUserId, clientId);
+  async listWhiteListByClientId(loggedUserId, clientId, filtros) {
+    return await whiteListService.list(loggedUserId, clientId, filtros);
   }
 
   /**
@@ -51,6 +52,13 @@ class WhiteListController {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Importa veículos de uma planilha Excel (.xlsx) para a green list do cliente
+   */
+  async importarWhiteList(loggedUserId, clientId, conteudo) {
+    return await whiteListImportacaoService.importar(loggedUserId, clientId, conteudo);
   }
 
   /**
