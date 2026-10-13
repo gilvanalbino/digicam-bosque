@@ -362,8 +362,10 @@ Branch `feature/detector-anomalias`, publicada só em homologação (versão `r4
 | 7. Implantação controlada | não feita | — |
 
 - **Job:** serviço `anomalias` no compose de homologação (`node services/anomalia/executar.js --modo=servico`),
-  um ciclo a cada 5 minutos, referências uma vez por dia. Uma carga de 104 dias leva cerca de 2 s; a primeira
-  execução (30 dias, 66.081 passagens avaliadas, 1.508 alertas) levou 25 s.
+  um ciclo por minuto, referências uma vez por dia. Uma carga de 104 dias leva cerca de 2 s. Desde 13/10/2026
+  não há carga retroativa: o veículo é avaliado quando entra ou sai, e a primeira execução só forma o estado
+  e marca o ponto de partida. (A carga inicial de 30 dias usada até então avaliou 66.081 passagens e gravou
+  1.508 alertas em 25 s; esses alertas foram apagados do HML.) O modo `retroativo` continua disponível à mão.
 - **Testes:** 22 testes unitários (`npm run test:unitario`, `node:test` nativo) e 44 verificações de
   integração (`npm run test:integracao:anomalias`), mais as 90 do teste de conciliação, sem regressão.
 
@@ -402,6 +404,7 @@ Janela de 90 dias até 10/10/2026, 60.130 tráfegos e 92.161 saídas sem entrada
 | Janela ampliada de 180 dias | prevista | não usada | os analisadores usam só a janela de 90 dias |
 | Incremental | cursor | cursor com margem de consolidação de 10 minutos | saídas sem entrada só são gravadas 3 minutos depois da leitura |
 | Usuário de banco próprio | recomendado | não criado: o job usa o usuário da aplicação | fica para a implantação |
+| Primeira execução | não especificada; implementada com carga dos últimos 30 dias | **sem carga retroativa** (13/10/2026): só são avaliados os veículos que entram ou saem dali em diante; ciclo de 1 minuto no HML | decisão do usuário: calcular sob demanda, não em lote sobre o passado |
 | Baixa manual | categoria própria, excluída | conta como **entrada sem saída**, junto com a viagem aberta (13/10/2026); o histórico do veículo mostra "sem saída" | decisão do usuário: sem leitura de câmera, a saída não foi observada. A pontuação não muda |
 
 Os parâmetros estão todos em `backend/services/anomalia/parametros.js`, com a versão do modelo (`1.0.0`).

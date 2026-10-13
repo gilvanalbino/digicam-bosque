@@ -39,15 +39,16 @@ const comRegistro = async (clientId, modo, periodoInicio, periodoFim, tarefa) =>
 };
 
 /**
- * Analisa as passagens ainda não analisadas (do cursor até agora menos a margem de consolidação).
- * Na primeira execução, analisa os últimos dias, depois de um período de aquecimento do EWMA.
+ * Analisa as passagens ainda não analisadas (do cursor até agora menos a margem de consolidação): o veículo é
+ * avaliado quando entra ou sai. Não há carga retroativa: a primeira execução só forma o estado (aquecimento
+ * do EWMA) e marca o ponto de partida, sem gerar alerta para o que já passou.
  */
 const executarIncremental = async (clientId, agora = new Date()) => {
   const ate = agora.getTime() - p.MARGEM_CONSOLIDACAO_MIN * 60000;
   const cursor = await dados.obterCursor(clientId);
   const primeira = !cursor;
-  const de = primeira ? inicioDoDiaLocal(ate - p.DIAS_PRIMEIRA_EXECUCAO * DIA_MS) : new Date(cursor).getTime();
-  if (de >= ate) return null;
+  const de = primeira ? ate : new Date(cursor).getTime();
+  if (!primeira && de >= ate) return null;
 
   return comRegistro(clientId, 'incremental', de, ate, async () => {
     const aquecimento = primeira ? p.DIAS_AQUECIMENTO : 0;
@@ -62,9 +63,8 @@ const executarIncremental = async (clientId, agora = new Date()) => {
     const repeticoes = await dados.aplicarRepeticoes(resultado.repeticoes);
     const estadosGravados = await dados.salvarEstados(clientId, estados, estados.alterados);
 
-    // atraso entre a passagem e a geração do alerta (não se aplica à carga inicial)
-    const novos = primeira ? [] : resultado.alertas;
-    const atrasos = novos.map((alerta) => (Date.now() - alerta.ocorrido_em.getTime()) / 1000);
+    // atraso entre a passagem e a geração do alerta
+    const atrasos = resultado.alertas.map((alerta) => (Date.now() - alerta.ocorrido_em.getTime()) / 1000);
     return {
       primeira_execucao: primeira,
       avaliacao: resultado.resumo,

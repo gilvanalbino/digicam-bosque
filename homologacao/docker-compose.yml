@@ -77,7 +77,7 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=America/Bahia
-      - ANOMALIA_INTERVALO_MIN=5
+      - ANOMALIA_INTERVALO_MIN=1
       - DATABASE_USER=digicam_hml
       - DATABASE_PASS=${HML_DB_PASS}
       - DATABASE_NAME=digicam_hml

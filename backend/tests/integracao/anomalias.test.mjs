@@ -69,6 +69,7 @@ const viagem = (placa, cliente, portaria, entrada, minutos) => {
 for (let d = 41; d >= 2; d--) {
   viagem('ANM1A11', 1, 1, oitoDaManha(-d), 2);
   viagem('OUT1A11', 2, 2, oitoDaManha(-d), 2);
+  viagem('DEM1A11', 1, 1, oitoDaManha(-d), 2); // sem anomalia no passado; usada no cálculo sob demanda
 }
 const idAnomalia = viagem('ANM1A11', 1, 1, oitoDaManha(-1), 120);
 viagem('OUT1A11', 2, 2, oitoDaManha(-1), 120);
@@ -90,7 +91,16 @@ const carregados = noBackend("require('./services/anomalia/dados').carregarHisto
 const esperados = sql('SELECT id FROM Trafegos WHERE client_id=1 AND dataEntrada >= UTC_TIMESTAMP() - INTERVAL 1 HOUR AND dataEntrada < UTC_TIMESTAMP() ORDER BY id').split('\n').filter(Boolean).map(Number);
 ok(esperados.length > 0 && JSON.stringify(carregados) === JSON.stringify(esperados), 'carga do histórico: traz exatamente os tráfegos da última hora', { carregados, esperados });
 
-// ---------------- job retroativo
+// ---------------- primeira execução: sem carga retroativa
+const incrementalEm = (minutos) =>
+  noBackend(`require('./services/anomalia/job').executarIncremental(1, new Date(Date.now()+(${minutos})*60000)).then((x)=>{console.log(JSON.stringify(x)); process.exit(0)})`);
+let inicial = incrementalEm(-60);
+ok(inicial.primeira_execucao === true && inicial.avaliacao.eventos === 0 && inicial.alertas.gerados === 0 && sql('SELECT COUNT(*) FROM Anomalias') === '0',
+  'primeira execução: não calcula o passado (a permanência longa de ontem não vira alerta)', inicial);
+ok(Number(sql("SELECT COUNT(*) FROM Anomalia_estados WHERE client_id=1 AND chave_veiculo='ANM1A11'")) === 1, 'primeira execução: forma o estado da placa (aquecimento)');
+ok(sql("SELECT COUNT(*) FROM Anomalia_execucoes WHERE client_id=1 AND modo='incremental' AND status='OK'") === '1', 'primeira execução: marca o ponto de partida');
+
+// ---------------- job retroativo (uso manual)
 let r = job(`--modo=retroativo --cliente=1 --de=${diaLocal(-1)} --ate=${diaLocal(1)}`);
 ok(r.length === 1 && r[0].resultado && r[0].resultado.alertas.novos === 1, 'retroativo: gera o alerta da permanência longa', r);
 let alerta = sql("SELECT id, client_id, trafego_id, score, status, JSON_EXTRACT(motivos,'$[0]'), JSON_EXTRACT(evidencias,'$.duracao.mediana_s'), JSON_EXTRACT(evidencias,'$.duracao.valor_s'), JSON_EXTRACT(evidencias,'$.composicao.principal'), versao_modelo FROM Anomalias WHERE chave_veiculo='ANM1A11'").split('\t');
@@ -126,7 +136,7 @@ ok(sql('SELECT COUNT(*) FROM Anomalia_referencias') === totalReferencias, 'refer
 
 // ---------------- incremental
 r = job('--modo=incremental --cliente=1');
-ok(r[0].resultado.primeira_execucao === true && r[0].resultado.alertas.novos === 0 && r[0].resultado.alertas.mantidos === 1, 'incremental: primeira execução reencontra o alerta já gravado, sem duplicar', r);
+ok(r[0].resultado.primeira_execucao === false && r[0].resultado.alertas.gerados === 0, 'incremental: avalia só as passagens posteriores ao ponto de partida, sem alerta novo', r);
 r = job('--modo=incremental --cliente=1');
 ok(r[0].resultado === null || r[0].resultado.avaliacao.eventos === 0, 'incremental: segunda execução não reavalia o que já foi analisado', r);
 ok(sql('SELECT COUNT(*) FROM Anomalias WHERE client_id=1') === '1', 'incremental: continua um alerta só');
@@ -190,6 +200,18 @@ r = await op('GET', '/anomalias/client/1/metricas');
 ok(r.status === 'ERROR', 'métricas: operador comum não acessa', r);
 r = await adm('GET', '/anomalias/client/2/metricas');
 ok(r.status === 'ERROR', 'métricas: negadas para outro cliente', r);
+
+// ---------------- cálculo sob demanda: o veículo é avaliado quando sai
+{
+  const minutosAtras = (m) => new Date(Date.now() - m * 60000).toISOString().slice(0, 19).replace('T', ' ');
+  sql(`INSERT INTO Trafegos (id,placa,placa_saida,dataEntrada,dataSaida,identificador_placa_saida,destino,client_id,portaria_entrada_id,portaria_saida_id,createdAt,updatedAt)
+   VALUES (1998,'DEM1A11','DEM1A11','${minutosAtras(125)}','${minutosAtras(5)}','an-1998','cruzar',1,1,1,NOW(),NOW())`);
+  // a saída foi há 5 minutos: adianta o relógio do job para ela passar da margem de consolidação
+  const x = incrementalEm(20);
+  const novo = sql("SELECT trafego_id, score_duracao >= 60, status FROM Anomalias WHERE client_id=1 AND chave_veiculo='DEM1A11'");
+  ok(x.primeira_execucao === false && x.alertas.novos === 1 && novo === '1998\t1\tABERTA', 'sob demanda: a saída de um veículo com permanência anormal gera o alerta dele', { x, novo });
+  ok(sql("SELECT COUNT(*) FROM Anomalias WHERE client_id=1") === '2', 'sob demanda: só a placa que passou é avaliada', sql('SELECT chave_veiculo, score FROM Anomalias'));
+}
 
 sql(`DELETE FROM Anomalia_revisoes; DELETE FROM Anomalias; DELETE FROM Anomalia_estados; DELETE FROM Anomalia_referencias; DELETE FROM Anomalia_execucoes;
 DELETE FROM Trafegos WHERE id BETWEEN 1000 AND 1999; DELETE FROM Users WHERE email IN ('adm@bosque','adm@outro');`);

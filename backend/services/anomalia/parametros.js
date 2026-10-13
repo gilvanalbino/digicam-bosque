@@ -59,7 +59,7 @@ module.exports = {
 
   // processamento
   MARGEM_CONSOLIDACAO_MIN: 10,
-  DIAS_PRIMEIRA_EXECUCAO: 30,
+  // dias anteriores usados só para formar o estado (EWMA) na primeira execução; não geram alerta
   DIAS_AQUECIMENTO: 14,
   RETENCAO_REFERENCIAS_DIAS: 180,
 };
