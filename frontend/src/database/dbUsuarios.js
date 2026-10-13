@@ -75,3 +75,20 @@ export const removerUsuario = (token, id) => {
       });
   });
 };
+
+// troca a senha do próprio usuário logado; a resposta é { status: 'OK' } ou { status: 'ERROR', message }
+export const alterarMinhaSenha = (token, senhaAtual, novaSenha) => {
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: { authorization: token, 'Content-Type': 'application/json' },
+    };
+    api
+      .post(`/users/me/senha`, { senhaAtual, novaSenha }, options)
+      .then((response) => {
+        resolve(response.data);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+};

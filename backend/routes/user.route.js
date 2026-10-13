@@ -154,6 +154,40 @@ class UserRoutes extends BaseRoute {
     };
   }
 
+  alterarPropriaSenha() {
+    return {
+      path: `/${this.context}/users/me/senha`,
+      method: 'POST',
+      options: {
+        handler: async (request, h) => {
+          try {
+            return await userController.alterarPropriaSenha(request.loggedUserId, request.payload.senhaAtual, request.payload.novaSenha);
+          } catch (error) {
+            // o motivo (senha atual incorreta, senha curta) precisa chegar à tela; as senhas não vão para o log
+            console.error('Troca de senha recusada -', error.message);
+            return { status: 'ERROR', message: error.message };
+          }
+        },
+        description: 'Troca a senha do usuário logado',
+        notes: 'Exige a senha atual. Retorna { status: "OK" } ou { status: "ERROR", message }.',
+        tags: ['api', 'users'],
+        validate: {
+          payload: Joi.object({
+            senhaAtual: Joi.string().required().max(200),
+            novaSenha: Joi.string().required().max(200),
+          }).label('TrocaSenha'),
+          headers: Joi.object({
+            authorization: Joi.string().required(),
+          }).unknown(),
+        },
+        response: {
+          schema: schemas.response,
+          failAction: 'log',
+        },
+      },
+    };
+  }
+
   delete() {
     return {
       path: `/${this.context}/users/{id}`,

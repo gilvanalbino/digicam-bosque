@@ -108,10 +108,36 @@ const remove = async (loggedUserId, removeUserId) => {
   }
 };
 
+const TAMANHO_MINIMO_SENHA = 8;
+
+/**
+ * Troca a senha do próprio usuário logado. Exige a senha atual; a nova precisa ter o tamanho mínimo e ser
+ * diferente da atual.
+ */
+const alterarPropriaSenha = async (loggedUserId, senhaAtual, novaSenha) => {
+  const usuario = await User.findByPk(loggedUserId);
+  if (!usuario) {
+    throw Error('Informar usuário logado');
+  }
+  if (!senhaAtual || !User.validPassword(senhaAtual, usuario.password)) {
+    throw Error('Senha atual incorreta');
+  }
+  if (!novaSenha || novaSenha.length < TAMANHO_MINIMO_SENHA) {
+    throw Error(`A nova senha deve ter pelo menos ${TAMANHO_MINIMO_SENHA} caracteres`);
+  }
+  if (novaSenha === senhaAtual) {
+    throw Error('A nova senha deve ser diferente da atual');
+  }
+  await User.update({ password: User.generateHash(novaSenha) }, { where: { id: usuario.id } });
+  console.log(`Senha alterada pelo próprio usuário ${usuario.id}`);
+  return { status: 'OK' };
+};
+
 module.exports = {
   list,
   get,
   insert,
   update,
   remove,
+  alterarPropriaSenha,
 };

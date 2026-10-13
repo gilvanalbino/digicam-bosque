@@ -23,6 +23,13 @@ class UserController {
   }
 
   /**
+   * Troca a senha do próprio usuário logado
+   */
+  async alterarPropriaSenha(loggedUserId, senhaAtual, novaSenha) {
+    return await userService.alterarPropriaSenha(loggedUserId, senhaAtual, novaSenha);
+  }
+
+  /**
    * Insert a user
    */
   async insertUser(loggedUserId, newUser) {

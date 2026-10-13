@@ -25,6 +25,7 @@ import Anomalias from '../pages/anomalias/Anomalias.vue';
 
 import ListagemTrafegoPorPeriodo from '../pages/relatorios/ListagemTrafegoPorPeriodo.vue';
 
+import AlterarSenha from '../pages/usuarios/AlterarSenha.vue';
 import ListWhiteList from '../pages/whiteList/ListWhiteList.vue';
 import FormWhiteList from '../pages/whiteList/FormWhiteList.vue';
 
@@ -103,6 +104,10 @@ const router = createRouter({
     {
       path: '/',
       component: Dashboard,
+    },
+    {
+      path: '/alterar-senha',
+      component: AlterarSenha,
     },
     {
       path: '/linha-do-tempo',
