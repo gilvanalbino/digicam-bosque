@@ -22,7 +22,6 @@ const config = {
   },
   dialectOptions: {
     connectTimeout: 60000,     // 60s timeout para conectar ao MySQL
-    acquireTimeout: 60000,     // 60s timeout para adquirir conexão
     timeout: 60000,            // 60s timeout para queries
     reconnect: true,           // Reconectar automaticamente
     idleTimeout: 300000        // 5min timeout para conexões idle no MySQL
