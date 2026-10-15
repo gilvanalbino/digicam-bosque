@@ -1,5 +1,15 @@
 import { api } from '../utils/axios';
 
+// o backend devolve os erros (validação, permissão) com HTTP 200 e o erro no corpo
+const respostaOuErro = (response, resolve, reject) => {
+  const erro = response.data && response.data.statusCode >= 400 ? response.data : null;
+  if (erro) {
+    reject(new Error((erro.payload && erro.payload.message) || 'Erro salvando usuário'));
+  } else {
+    resolve(response.data);
+  }
+};
+
 export const inserirUsuario = (token, { name, email, password, active, admin, admin_client, client_id }) => {
   return new Promise((resolve, reject) => {
     const options = {
@@ -9,7 +19,7 @@ export const inserirUsuario = (token, { name, email, password, active, admin, ad
     api
       .post(`/users`, data, options)
       .then((response) => {
-        resolve(response.data);
+        respostaOuErro(response, resolve, reject);
       })
       .catch((error) => {
         reject(error);
@@ -52,7 +62,7 @@ export const atualizarUsuario = (token, { id, name, email, password, active, adm
     api
       .put(`/users`, data, options)
       .then((response) => {
-        resolve(response.data);
+        respostaOuErro(response, resolve, reject);
       })
       .catch((error) => {
         reject(error);

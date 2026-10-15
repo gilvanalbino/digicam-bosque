@@ -26,7 +26,8 @@ const commonUserAttributes = {
   active: Joi.boolean().required().description('Indicador se o usuário está ativo'),
   admin: Joi.boolean().required().description('Indicador se o usuário é administrador'),
   admin_client: Joi.boolean().required().description('Indicador se o usuário é administrador do cliente'),
-  client_id: Joi.number().description('Id do cliente que o usuário pertente'),
+  // administradores do sistema não pertencem a um cliente (client_id nulo)
+  client_id: Joi.number().allow(null).description('Id do cliente que o usuário pertente'),
 };
 
 const idUserAttribute = { id: Joi.number().required().description('Id do usuário') };
