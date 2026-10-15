@@ -1,6 +1,7 @@
 'use strict';
 const { Op } = require('sequelize');
 const { User, WhiteList } = require('../models');
+const { placaCorrigidaPelaGreenList } = require('./placaUtil');
 
 const TAMANHO_PAGINA_PADRAO = 50;
 
@@ -127,6 +128,15 @@ const findByPlaca = async (loggedUserId, clientId, placa) => {
   }
 };
 
+/**
+ * Placa da green list do cliente que difere em 1 caractere da placa lida pela câmera (erro de leitura),
+ * ou null quando não há correção a fazer. Ver placaCorrigidaPelaGreenList.
+ */
+const obterPlacaCorrigida = async (clientId, placa) => {
+  const veiculos = await WhiteList.findAll({ attributes: ['placa'], where: { client_id: clientId }, raw: true });
+  return placaCorrigidaPelaGreenList(placa, veiculos.map((veiculo) => veiculo.placa));
+};
+
 module.exports = {
   list,
   get,
@@ -134,4 +144,5 @@ module.exports = {
   update,
   remove,
   findByPlaca,
+  obterPlacaCorrigida,
 };

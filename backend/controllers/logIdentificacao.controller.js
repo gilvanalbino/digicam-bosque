@@ -19,6 +19,13 @@ const gerarIdentificadorUnico = (date, placa) => {
   return `${date.getTime()}-${placa}`;
 };
 
+// placa como a câmera leu, guardada no identificador (a placa do registro pode ter sido corrigida pela green list)
+const placaLidaPelaCamera = (logIdentificacao) => {
+  const identificador = logIdentificacao.identificador_placa || '';
+  const separador = identificador.indexOf('-');
+  return separador > 0 ? identificador.slice(separador + 1) : logIdentificacao.placa;
+};
+
 /**
  * Salva em disco as imagens (carro e placa) de uma identificação, retornando os caminhos gravados
  */
@@ -138,6 +145,18 @@ class LogIdentificacaoController {
 
     const client = await clientService.get(loggedUserId, camera.client_id);
 
+    // leitura com 1 caractere de diferença de uma placa da green list é erro da câmera: assume a placa da lista.
+    // Placa lida que está na red list nunca é trocada. O identificador_placa mantém a placa lida, que é a usada
+    // para descartar leituras repetidas e localizar as fotos no FTP.
+    const placaNaRedList = await blackListService.findByPlaca(loggedUserId, client.id, newLogIdentificacao.placa);
+    if (!placaNaRedList) {
+      const placaCorrigida = await whiteListService.obterPlacaCorrigida(client.id, newLogIdentificacao.placa);
+      if (placaCorrigida) {
+        console.log(`Placa ${newLogIdentificacao.placa} corrigida para ${placaCorrigida} (green list)`);
+        newLogIdentificacao.placa = placaCorrigida;
+      }
+    }
+
     newLogIdentificacao.imagem_pendente = true;
     newLogIdentificacao.imagem_placa = null;
     newLogIdentificacao.imagem_carro = null;
@@ -248,7 +267,8 @@ class LogIdentificacaoController {
     console.log('placa: ', logIdentificacao.placa);
     console.log('data: ', logIdentificacao.data);
 
-    const placa = logIdentificacao.placa;
+    // os arquivos no FTP têm no nome a placa lida pela câmera
+    const placa = placaLidaPelaCamera(logIdentificacao);
 
     // obter imagem da placa da camera
     // a foto da placa é opcional: se não for localizada, segue sem ela
