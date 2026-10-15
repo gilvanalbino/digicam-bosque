@@ -242,10 +242,11 @@ const commonWhiteListAttributes = {
   placa: Joi.string().required().description('Placa do veículo'),
   marca: Joi.string().required().description('Marca do veículo'),
   modelo: Joi.string().required().description('Modelo do veículo'),
-  nome: Joi.string().required().description('Nome do priprietário'),
-  endereco: Joi.string().description('Endereço do proprietário'),
-  numero: Joi.string().description('Número da casa'),
-  complemento: Joi.string().description('Complemento do endereço'),
+  // na edição, o registro volta do banco com null/'' nos campos não preenchidos
+  nome: Joi.string().allow(null, '').description('Nome do priprietário'),
+  endereco: Joi.string().allow(null, '').description('Endereço do proprietário'),
+  numero: Joi.string().allow(null, '').description('Número da casa'),
+  complemento: Joi.string().allow(null, '').description('Complemento do endereço'),
   client_id: Joi.number().required().description('Id do cliente a quem pertence a portaria'),
 };
 
