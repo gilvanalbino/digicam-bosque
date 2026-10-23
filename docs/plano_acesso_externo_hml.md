@@ -1,6 +1,40 @@
 # Plano de acesso externo à homologação — túnel reverso + nginx na AWS
 
-Escrito em 2026-10-12. Nada deste plano foi executado; os comandos e arquivos abaixo não foram testados.
+Escrito em 2026-10-12 como plano, executado depois. A seção "Situação atual" mostra a configuração em uso.
+
+## Situação atual (2026-10-23)
+
+O plano foi executado, e desde 2026-10-23 o túnel expõe a **produção**, não mais a homologação.
+
+| Item | Valor |
+|---|---|
+| Endereço público | `https://digicam.efabrika.com.br/` |
+| Máquina na AWS | `18.216.121.212` (nginx 1.28 no Ubuntu; o DNS do domínio aponta para esse IP) |
+| Serviço do túnel nesta máquina | `~/.config/systemd/user/tunel-hml.service` (usuário `digicam`; o nome ficou `tunel-hml`) |
+| Chave do túnel | `~/.ssh/tunel_hml_ed25519`, usuário `tunel` na AWS, limitada à porta 18081 |
+| Encaminhamento | `-R 127.0.0.1:18081:127.0.0.1:80`: porta 18081 da AWS → nginx de **produção** (porta 80) |
+| Antes de 2026-10-23 | `-R 127.0.0.1:18081:127.0.0.1:8081` (HML); cópia em `tunel-hml.service.antes-prod-2026-10-23` |
+
+Como a chave na AWS só permite a porta 18081, só um ambiente fica exposto por vez. Para trocar o destino:
+
+```bash
+# editar a porta de destino (80 = produção, 8081 = HML) em ~/.config/systemd/user/tunel-hml.service
+systemctl --user daemon-reload
+systemctl --user restart tunel-hml.service
+systemctl --user status tunel-hml.service
+```
+
+Para conferir qual ambiente o domínio alcança, fazer uma requisição com um marcador e procurar no log:
+
+```bash
+M=verifica-$(date +%s); curl -s -o /dev/null "https://digicam.efabrika.com.br/?$M"
+docker logs --since 1m digicam_nginx_1     2>&1 | grep -c "$M"   # produção
+docker logs --since 1m digicam-hml_nginx_1 2>&1 | grep -c "$M"   # HML
+```
+
+Em 2026-10-23 o domínio respondeu sem pedir a senha do nginx da AWS descrita no item 4.1; a única proteção na
+frente da produção é o login da própria aplicação. O restante deste documento é o plano original, escrito para o
+HML.
 
 ## 1. Objetivo
 
