@@ -32,6 +32,38 @@ docker logs --since 1m digicam_nginx_1     2>&1 | grep -c "$M"   # produção
 docker logs --since 1m digicam-hml_nginx_1 2>&1 | grep -c "$M"   # HML
 ```
 
+### Vídeo ao vivo pelo domínio (WebSocket no nginx da AWS)
+
+O vídeo ao vivo das câmeras (go2rtc, desde a `r75`) usa WebSocket em `/video/ws`. O nginx da AWS não repassava os
+cabeçalhos `Upgrade`/`Connection`, e o pedido chegava ao go2rtc como HTTP comum (`400 Bad Request`); pela rede
+interna o vídeo funcionava. Em 2026-10-23 foi acrescentado, no `server` de `digicam.efabrika.com.br` na AWS, antes
+do `location /`:
+
+```nginx
+location /video/ws {
+    proxy_pass http://127.0.0.1:18081;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+}
+```
+
+e aplicado com `sudo nginx -t && sudo systemctl reload nginx`. O trecho foi aplicado diretamente na AWS (o arquivo
+de lá não está neste repositório); se a configuração da AWS for refeita, ele precisa voltar.
+
+Para conferir (só responde 101 com um token de login válido; sem token, 401):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+  "https://digicam.efabrika.com.br/video/ws?src=cam2&token=<token>"
+```
+
+Com o túnel apontando para o HML (porta 8081), o mesmo trecho serve: o nginx do HML também atende `/video/ws`.
+
 Em 2026-10-23 o domínio respondeu sem pedir a senha do nginx da AWS descrita no item 4.1; a única proteção na
 frente da produção é o login da própria aplicação. O restante deste documento é o plano original, escrito para o
 HML.
