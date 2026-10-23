@@ -91,6 +91,19 @@ services:
     restart: unless-stopped
     logging: *log
 
+  # vídeo ao vivo das câmeras (go2rtc.yaml); sem porta publicada, acessado só pelo nginx em /video/
+  go2rtc:
+    image: alexxit/go2rtc:1.9.9
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml:ro
+    environment:
+      - TZ=America/Bahia
+      - CAMERA_SENHA_URL=${CAMERA_SENHA_URL}
+    mem_limit: 256m
+    cpus: 1
+    restart: unless-stopped
+    logging: *log
+
   frontend:
     image: digicam-frontend:hml-${HML_TAG}
     environment:

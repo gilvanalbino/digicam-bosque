@@ -7,6 +7,9 @@
     </template>
     <hr class="mt-5 mb-5 bg-gray-400"/>
 
+    <!-- câmeras ao vivo, recolhidas por padrão -->
+    <PainelCameras/>
+
     <div class="lg:flex lg:items-start lg:gap-6">
       <!-- Tráfegos por status: travessia, serviço/visitantes e histórico -->
       <div class="min-w-0 lg:flex-1">
@@ -28,12 +31,13 @@ import { useRouter } from 'vue-router';
 import Main from '../layout/Main.vue'
 import AbasTrafego from '../../components/AbasTrafego.vue';
 import PainelSaidas from '../../components/PainelSaidas.vue';
+import PainelCameras from '../../components/PainelCameras.vue';
 
 import usePortarias from '../../composables/usePortarias'
 import useTrafegos from '../../composables/useTrafegos'
 
 export default {
-  components: {Main, AbasTrafego, PainelSaidas},
+  components: {Main, AbasTrafego, PainelSaidas, PainelCameras},
   setup() {
 
     const portariaSelecionada = computed(() => usePortarias.state.portarias.selecionada);

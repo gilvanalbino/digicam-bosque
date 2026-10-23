@@ -1,0 +1,21 @@
+# go2rtc: repassa o vídeo das câmeras ao navegador (MSE por WebSocket), sem recodificar (as câmeras já mandam H.264).
+# Uma conexão RTSP por câmera, qualquer que seja o número de pessoas assistindo. Sem porta publicada: o acesso é
+# só pelo nginx, em /video/ws, depois de o backend conferir o login (rota /digicam/video/autorizar).
+# A senha vem do .env (CAMERA_SENHA_URL, com "@" escrito como %40).
+api:
+  listen: ":1984"
+rtsp:
+  listen: ""
+webrtc:
+  listen: ""
+log:
+  level: warn
+
+# cam<id da câmera no banco>: fluxo secundário da câmera (canal 102: 704x480, 8 qps, 128 kbps), sem recodificar.
+# É o único fluxo: mosaico, painel do Tráfego e tela cheia (ampliada) compartilham uma conexão por câmera.
+# O fluxo principal (101, 1080p, 8 Mbps) fica só para a leitura de placas da câmera.
+streams:
+  cam2: rtsp://admin:${CAMERA_SENHA_URL}@10.0.0.129:554/Streaming/Channels/102
+  cam3: rtsp://admin:${CAMERA_SENHA_URL}@10.0.0.111:554/Streaming/Channels/102
+  cam4: rtsp://admin:${CAMERA_SENHA_URL}@10.0.0.145:554/Streaming/Channels/102
+  cam5: rtsp://admin:${CAMERA_SENHA_URL}@10.0.0.187:554/Streaming/Channels/102

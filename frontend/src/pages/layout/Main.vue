@@ -282,6 +282,7 @@ export default {
       { name: 'Tráfego', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/')} },
       // { name: 'Tráfego/Saídas', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/trafegos/saidas')} },
       { name: 'Linha do Tempo', visible: true, icon: ClockIcon, action: ()=>{router.replace('/linha-do-tempo')} },
+      { name: 'Câmeras ao vivo', visible: true, icon: VideoCameraIcon, action: ()=>{router.replace('/ao-vivo')} },
       { name: 'Anomalias', visible: true, icon: ExclamationIcon, action: ()=>{router.replace('/anomalias')} },
       { name: 'Green List', visible: true, icon: SwitchVerticalIcon, action: ()=>{router.replace('/greenList')} },
       { name: 'Red List', visible: true, icon: BanIcon, action: ()=>{router.replace('/redList')} },

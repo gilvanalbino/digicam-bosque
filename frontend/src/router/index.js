@@ -22,6 +22,7 @@ import ListSelecaoIdentAuto from '../pages/trafegos/ListSelecaoIdentAuto.vue';
 import Dashboard from '../pages/trafegos/Dashboard.vue';
 import LinhaDoTempo from '../pages/trafegos/LinhaDoTempo.vue';
 import Anomalias from '../pages/anomalias/Anomalias.vue';
+import CamerasAoVivo from '../pages/cameras/AoVivo.vue';
 
 import ListagemTrafegoPorPeriodo from '../pages/relatorios/ListagemTrafegoPorPeriodo.vue';
 
@@ -116,6 +117,10 @@ const router = createRouter({
     {
       path: '/anomalias',
       component: Anomalias,
+    },
+    {
+      path: '/ao-vivo',
+      component: CamerasAoVivo,
     },
     {
       path: '/trafegos/novo',
