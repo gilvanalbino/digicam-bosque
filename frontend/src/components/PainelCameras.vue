@@ -1,6 +1,7 @@
 <template>
   <!-- Câmeras ao vivo na tela de Tráfego: aba pendurada na linha do topo; os vídeos só existem com o painel aberto
-       (ao recolher, as conexões fecham; ao abrir de novo, o vídeo volta ao vivo). Sem interação com os vídeos. -->
+       (ao recolher, as conexões fecham; ao abrir de novo, o vídeo volta ao vivo). Sem interação com os vídeos.
+       Pelo endereço público o painel recolhe sozinho depois de alguns minutos (banda do condomínio e custo da AWS). -->
   <div class="-mt-5 mb-5">
     <div
       v-if="aberto"
@@ -35,14 +36,21 @@
         <ChevronDownIcon v-else class="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
+    <p v-if="aberto && restante" class="mt-1 text-center text-xs text-gray-500">
+      Acesso pela internet: as câmeras recolhem sozinhas em {{ restante }}.
+    </p>
+    <p v-else-if="recolhidoSozinho" class="mt-1 text-center text-xs text-gray-500">
+      As câmeras foram recolhidas após {{ MINUTOS_ACESSO_PUBLICO }} minutos para economizar internet. Clique em
+      "Ver câmeras" para abrir de novo.
+    </p>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
 import { VideoCameraIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/vue/solid';
 import useClientes from '../composables/useClientes';
-import { montarVideo, listarCamerasAoVivo, nomeCurto } from '../composables/useVideoAoVivo';
+import { montarVideo, listarCamerasAoVivo, nomeCurto, acessoPublico } from '../composables/useVideoAoVivo';
 
 const aberto = ref(false);
 const cameras = ref([]);
@@ -69,12 +77,48 @@ const carregarCameras = async () => {
   }
 };
 
+// pelo endereço público o painel fecha sozinho: o vídeo sai pela internet do condomínio e pela AWS
+const MINUTOS_ACESSO_PUBLICO = 5;
+const limitado = acessoPublico();
+const restante = ref('');
+const recolhidoSozinho = ref(false);
+let fechaEm = 0;
+let relogio = null;
+
+const pararRelogio = () => {
+  clearInterval(relogio);
+  relogio = null;
+  restante.value = '';
+};
+
+const atualizarRestante = () => {
+  const segundos = Math.max(0, Math.ceil((fechaEm - Date.now()) / 1000));
+  if (segundos === 0) {
+    aberto.value = false;
+    recolhidoSozinho.value = true;
+    pararRelogio();
+    return;
+  }
+  const min = Math.floor(segundos / 60);
+  const seg = String(segundos % 60).padStart(2, '0');
+  restante.value = `${min}:${seg}`;
+};
+
 const alternar = () => {
   aberto.value = !aberto.value;
+  recolhidoSozinho.value = false;
+  pararRelogio();
   if (aberto.value) {
     carregarCameras();
+    if (limitado) {
+      fechaEm = Date.now() + MINUTOS_ACESSO_PUBLICO * 60 * 1000;
+      atualizarRestante();
+      relogio = setInterval(atualizarRestante, 1000);
+    }
   }
 };
+
+onBeforeUnmount(pararRelogio);
 
 // troca de cliente com o painel aberto: recarrega as câmeras
 watch(clienteId, () => {

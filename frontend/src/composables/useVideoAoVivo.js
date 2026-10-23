@@ -78,4 +78,16 @@ const listarCamerasAoVivo = async (clientId) => {
   return ordenarCameras((Array.isArray(data) ? data : []).filter((c) => c.sentido === 'E' || c.sentido === 'S'));
 };
 
-export { carregarPlayer, montarVideo, ordenarCameras, nomeCurto, listarCamerasAoVivo };
+// acesso pelo endereço público (ex.: digicam.efabrika.com.br): o vídeo sai pela internet do condomínio e pelo
+// túnel da AWS, que cobra pelo tráfego. Rede interna e túnel SSH (localhost) não contam.
+const acessoPublico = (hostname = location.hostname) =>
+  !(
+    hostname === 'localhost' ||
+    /^127\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    hostname === '[::1]'
+  );
+
+export { carregarPlayer, montarVideo, ordenarCameras, nomeCurto, listarCamerasAoVivo, acessoPublico };
