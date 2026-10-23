@@ -16,6 +16,7 @@
           <span v-if="trafego.nome" class="text-base font-bold text-gray-400">
             {{ trafego.nome }}
           </span>
+          <SinaisVeiculo :placa="trafego.placa" :quando="trafego.dataEntrada" class="ml-1" />
         </p>
         <p v-if="mapPortaria[trafego.portaria_entrada_id]" class="text-xs text-green-700 font-bold truncate">
           Entrada: {{ mapPortaria[trafego.portaria_entrada_id].nome }}
@@ -57,9 +58,12 @@
 <script>
 import { computed } from 'vue';
 
+import SinaisVeiculo from './SinaisVeiculo.vue';
+
 import { formatarData } from '../utils/dateUtil';
 
 export default {
+  components: { SinaisVeiculo },
   props: {
     trafego: { type: Object, required: true },
     mapPortaria: { type: Object, default: () => ({}) },

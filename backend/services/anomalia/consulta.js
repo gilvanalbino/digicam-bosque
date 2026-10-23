@@ -1,7 +1,7 @@
 'use strict';
 
-// Consultas e revisão dos alertas de anomalia, usadas pela API. Somente administradores (do sistema ou do
-// próprio cliente) acessam; operadores não veem os alertas nesta versão.
+// Consultas e revisão dos alertas de anomalia, usadas pela API. Acessam os usuários do próprio cliente
+// (operadores e administradores) e os administradores do sistema.
 const { Op, QueryTypes } = require('sequelize');
 const {
   sequelize, User, Trafego, SaidaNaoIdentificada, Camera, Anomalia, AnomaliaRevisao, AnomaliaReferencia, AnomaliaExecucao,
@@ -9,7 +9,7 @@ const {
 const { normalizarPlaca, dataLocalIso } = require('./preparacao');
 const { faixaDoScore } = require('./estatistica');
 
-const SEM_PERMISSAO = { status: 'ERROR', message: 'Operação permitida somente para administradores' };
+const SEM_PERMISSAO = { status: 'ERROR', message: 'Operação permitida somente para usuários do cliente' };
 const FAIXAS = { observacao: [30, 60], revisao: [60, 80], prioridade_alta: [80, 101] };
 const RESULTADOS = ['CONFIRMADA', 'DESCARTADA', 'REVISADA'];
 
@@ -18,7 +18,7 @@ const podeAcessar = async (loggedUserId, clientId) => {
   if (!usuario) {
     throw Error('Informar usuário logado');
   }
-  return !!(usuario.admin || (usuario.admin_client && Number(usuario.client_id) === Number(clientId)));
+  return !!(usuario.admin || Number(usuario.client_id) === Number(clientId));
 };
 
 const comoObjeto = (valor) => (typeof valor === 'string' ? JSON.parse(valor) : valor);
@@ -129,6 +129,64 @@ const historicoDaPlaca = async (loggedUserId, clientId, placa) => {
   return { placa: chave, referencias, alertas: alertas.map((alerta) => formatar(alerta, { resumido: true })), trafegos, saidas };
 };
 
+const iso = (data) => (data ? new Date(data).toISOString() : null);
+
+/**
+ * Sinais exibidos nos cards de veículo, por placa:
+ *  - anomalia: o alerta mais recente da placa que não foi descartado na revisão (ou null);
+ *  - primeira_passagem: data da leitura mais antiga da placa no cliente, entrada ou saída. Só é calculada para
+ *    as placas pedidas em "primeira": ela não muda depois de conhecida, então a tela pede uma vez só.
+ */
+const sinaisDasPlacas = async (loggedUserId, clientId, { placas = [], primeira = [] } = {}) => {
+  if (!(await podeAcessar(loggedUserId, clientId))) {
+    return { status: 'ERROR', message: SEM_PERMISSAO.message };
+  }
+  const chaves = (lista) => [...new Set(lista.map(normalizarPlaca).filter(Boolean))];
+  const sinais = {};
+  const sinal = (placa) => (sinais[placa] = sinais[placa] || { anomalia: null });
+
+  const pedidas = chaves(placas);
+  pedidas.forEach(sinal);
+  if (pedidas.length) {
+    const alertas = await Anomalia.findAll({
+      attributes: ['id', 'chave_veiculo', 'score', 'status', 'ocorrido_em'],
+      where: { client_id: clientId, chave_veiculo: { [Op.in]: pedidas }, status: { [Op.ne]: 'DESCARTADA' } },
+      order: [['ocorrido_em', 'ASC']],
+      raw: true,
+    });
+    // em ordem crescente: fica o mais recente de cada placa
+    for (const alerta of alertas) {
+      sinal(alerta.chave_veiculo).anomalia = {
+        id: alerta.id, score: alerta.score, faixa: faixaDoScore(alerta.score), status: alerta.status, ocorrido_em: iso(alerta.ocorrido_em),
+      };
+    }
+  }
+
+  const novas = chaves(primeira);
+  if (novas.length) {
+    const replacements = { clientId, placas: novas };
+    const entradas = await sequelize.query(
+      'SELECT placa, MIN(dataEntrada) AS quando FROM Trafegos WHERE client_id = :clientId AND placa IN (:placas) GROUP BY placa',
+      { type: QueryTypes.SELECT, replacements }
+    );
+    const saidas = await sequelize.query(
+      'SELECT placa, MIN(data) AS quando FROM Saidas_nao_identificadas WHERE client_id = :clientId AND placa IN (:placas) GROUP BY placa',
+      { type: QueryTypes.SELECT, replacements }
+    );
+    const maisAntiga = new Map();
+    for (const linha of [...entradas, ...saidas]) {
+      if (!linha.quando) continue;
+      const placa = normalizarPlaca(linha.placa);
+      const quando = new Date(linha.quando).getTime();
+      if (!maisAntiga.has(placa) || quando < maisAntiga.get(placa)) maisAntiga.set(placa, quando);
+    }
+    for (const placa of novas) {
+      sinal(placa).primeira_passagem = maisAntiga.has(placa) ? iso(maisAntiga.get(placa)) : null;
+    }
+  }
+  return { status: 'OK', sinais };
+};
+
 /**
  * Registra a revisão humana e atualiza o status do alerta.
  * CONFIRMADA = relevância operacional confirmada pelo revisor; não significa confirmação de crime.
@@ -237,4 +295,4 @@ const metricas = async (loggedUserId, clientId, dias = 14) => {
   };
 };
 
-module.exports = { listar, obter, historicoDaPlaca, revisar, metricas };
+module.exports = { listar, obter, historicoDaPlaca, sinaisDasPlacas, revisar, metricas };

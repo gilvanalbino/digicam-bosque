@@ -15,6 +15,8 @@ const saidaNaoIdentificadaService = require('../services/saidaNaoIdentificada.se
 const logidentificacao = require('../models/logidentificacao');
 const { Camera } = require('../models');
 
+const TAMANHO_MAXIMO_PLACA = 7;
+
 const gerarIdentificadorUnico = (date, placa) => {
   return `${date.getTime()}-${placa}`;
 };
@@ -117,6 +119,12 @@ class LogIdentificacaoController {
    * Insert a logIdentificacao
    */
   async insertLogIdentificacao(loggedUserId, newLogIdentificacao) {
+    // placa tem no máximo 7 caracteres; leitura maior é adesivo ou texto do veículo lido como placa
+    if ((newLogIdentificacao.placa || '').length > TAMANHO_MAXIMO_PLACA) {
+      console.log(`Placa ${newLogIdentificacao.placa} ignorada: mais de ${TAMANHO_MAXIMO_PLACA} caracteres`);
+      return { mensagem: 'Leitura ignorada: placa com mais de 7 caracteres' };
+    }
+
     const placaId = gerarIdentificadorUnico(newLogIdentificacao.data, newLogIdentificacao.placa);
 
     const camera = await cameraService.get(loggedUserId, newLogIdentificacao.camera_id);

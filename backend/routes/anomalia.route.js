@@ -22,7 +22,7 @@ class AnomaliaRoutes extends BaseRoute {
           return await anomaliaController.listar(request.loggedUserId, request.params.id, request.query);
         },
         description: 'Lista os alertas de anomalia do cliente',
-        notes: 'Filtros de período, faixa, status e placa, com paginação. Somente administradores.',
+        notes: 'Filtros de período, faixa, status e placa, com paginação. Usuários do cliente.',
         tags: ['api', 'anomalias'],
         validate: {
           params: Joi.object({
@@ -83,6 +83,32 @@ class AnomaliaRoutes extends BaseRoute {
           params: Joi.object({
             id: Joi.number().required(),
             placa: Joi.string().max(10).required(),
+          }),
+          headers,
+        },
+      },
+    };
+  }
+
+  sinaisDasPlacas() {
+    const placas = Joi.array().items(Joi.string().max(10)).max(2000);
+    return {
+      path: `/${this.context}/anomalias/client/{id}/sinais`,
+      method: 'POST',
+      options: {
+        handler: async (request, h) => {
+          return await anomaliaController.sinaisDasPlacas(request.loggedUserId, request.params.id, request.payload);
+        },
+        description: 'Sinais dos cards de veículo',
+        notes: 'Para cada placa: o alerta mais recente não descartado e, se pedida, a data da primeira passagem',
+        tags: ['api', 'anomalias'],
+        validate: {
+          params: Joi.object({
+            id: Joi.number().required(),
+          }),
+          payload: Joi.object({
+            placas: placas.default([]),
+            primeira: placas.default([]),
           }),
           headers,
         },

@@ -106,7 +106,10 @@
             <div v-else class="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-lg font-bold text-gray-900">{{ saida.placa }}</p>
+            <p class="text-lg font-bold text-gray-900">
+              {{ saida.placa }}
+              <SinaisVeiculo :placa="saida.entrada.placa" :quando="saida.entrada.dataEntrada" class="ml-1" />
+            </p>
             <p v-if="saida.entrada.placa !== saida.placa" class="text-xs text-gray-500 truncate">lida na entrada: {{ saida.entrada.placa }}</p>
             <p class="text-xs text-red-700 font-bold truncate">Saída: {{ formatarHora(saida.data) }} {{ nomePortaria(saida.portaria_id) }}</p>
             <p class="text-xs text-green-700 font-bold truncate">Entrada: {{ formatarHora(saida.entrada.dataEntrada) }} {{ nomePortaria(saida.entrada.portaria_id) }}</p>
@@ -146,7 +149,10 @@
             <div v-else class="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">sem foto</div>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-lg font-bold text-gray-900">{{ saida.placa }}</p>
+            <p class="text-lg font-bold text-gray-900">
+              {{ saida.placa }}
+              <SinaisVeiculo :placa="saida.placa" :quando="saida.data" class="ml-1" />
+            </p>
             <p class="text-xs text-red-700 font-bold truncate">Saída: {{ formatarHora(saida.data) }} {{ nomePortaria(saida.portaria_id) }}</p>
             <p class="text-xs font-medium text-amber-800 truncate">Sem entrada identificada</p>
             <p v-if="saida.in_whitelist" class="text-xs font-medium text-green-800 truncate">
@@ -179,9 +185,10 @@ import { formatarData, formatarHora, calcularPermanencia } from '../utils/dateUt
 import { diferencasPlacas as diferencas, placaSugerida } from '../utils/placaUtil';
 
 import ModalDialog from './ModalDialog.vue';
+import SinaisVeiculo from './SinaisVeiculo.vue';
 
 export default {
-  components: { ModalDialog },
+  components: { ModalDialog, SinaisVeiculo },
   setup() {
     const mapPortaria = computed(() => usePortarias.state.portarias.map);
     const nomePortaria = (id) => (mapPortaria.value[id] ? mapPortaria.value[id].nome : '');

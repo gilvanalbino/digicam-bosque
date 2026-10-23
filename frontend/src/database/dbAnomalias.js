@@ -35,3 +35,12 @@ export const revisarAnomalia = (token, id, resultado, motivo) =>
       { headers: { authorization: token, 'Content-Type': 'application/json' } }
     )
   );
+
+export const obterSinaisDasPlacas = (token, client_id, placas, primeira = []) =>
+  pedir(
+    api.post(
+      `/anomalias/client/${client_id}/sinais`,
+      { placas, primeira },
+      { headers: { authorization: token, 'Content-Type': 'application/json' } }
+    )
+  );

@@ -154,7 +154,7 @@ r = await adm('GET', '/anomalias/client/1');
 ok(r.total === 1 && r.rows[0].placa === 'ANM1A11' && r.rows[0].faixa === 'prioridade_alta' && r.rows[0].motivos[0] === 'DURACAO_ACIMA', 'API: administrador do cliente lista os alertas dele', r);
 ok(r.rows[0].evidencias.duracao.mediana_s === 120 && r.rows[0].qualidade_dados.perfil === 'travessia_frequente', 'API: alerta traz evidências e qualidade dos dados', r.rows[0]);
 r = await op('GET', '/anomalias/client/1');
-ok(r.total === 0 && r.rows.length === 0, 'API: operador comum não vê alertas', r);
+ok(r.total === 1 && r.rows[0].placa === 'ANM1A11', 'API: operador do cliente também vê os alertas', r);
 r = await adm('GET', '/anomalias/client/2');
 ok(r.total === 0, 'API: administrador de um cliente não lista alertas de outro', r);
 r = await admin('GET', '/anomalias/client/2');
@@ -178,17 +178,28 @@ ok(r.alertas.length === 0 && r.trafegos.length === 0, 'histórico da placa: nega
 r = await adm('GET', '/anomalias/client/1/placa/OUT1A11');
 ok(r.alertas.length === 0 && r.trafegos.length === 0, 'histórico da placa: placa de outro cliente não aparece neste', r);
 
+// ---------------- sinais dos cards de veículo
+r = await op('POST', '/anomalias/client/1/sinais', { placas: ['anm-1a11', 'XXX0A00'], primeira: ['ANM1A11', 'XXX0A00'] });
+ok(r.status === 'OK' && r.sinais.ANM1A11.anomalia.id === idAlerta && r.sinais.ANM1A11.anomalia.faixa === 'prioridade_alta' && r.sinais.XXX0A00.anomalia === null,
+  'sinais: placa com alerta traz o alerta mais recente; placa sem alerta vem sem', r);
+ok(new Date(r.sinais.ANM1A11.primeira_passagem).getTime() === new Date(sql("SELECT DATE_FORMAT(MIN(dataEntrada),'%Y-%m-%dT%H:%i:%sZ') FROM Trafegos WHERE client_id=1 AND placa='ANM1A11'")).getTime()
+  && r.sinais.XXX0A00.primeira_passagem === null, 'sinais: primeira passagem é a leitura mais antiga da placa; placa nunca vista vem sem data', r.sinais);
+r = await op('POST', '/anomalias/client/1/sinais', { placas: ['ANM1A11'] });
+ok(r.sinais.ANM1A11.anomalia.id === idAlerta && !('primeira_passagem' in r.sinais.ANM1A11), 'sinais: primeira passagem só é calculada quando pedida', r);
+r = await admOutro('POST', '/anomalias/client/1/sinais', { placas: ['ANM1A11'] });
+ok(r.status === 'ERROR', 'sinais: negados para usuário de outro cliente', r);
+
 // ---------------- revisão
-r = await op('POST', `/anomalias/${idAlerta}/revisao`, { resultado: 'DESCARTADA' });
-ok(r.status === 'ERROR', 'revisão: operador comum não revisa', r);
 r = await admOutro('POST', `/anomalias/${idAlerta}/revisao`, { resultado: 'DESCARTADA' });
 ok(r.status === 'ERROR' && sql(`SELECT status FROM Anomalias WHERE id=${idAlerta}`) === 'ABERTA', 'revisão: administrador de outro cliente não revisa', r);
 r = await adm('POST', `/anomalias/${idAlerta}/revisao`, { resultado: 'INVALIDO' });
 ok(r.statusCode === 400 || r.status === 'ERROR', 'revisão: resultado inválido é recusado', r);
-r = await adm('POST', `/anomalias/${idAlerta}/revisao`, { resultado: 'DESCARTADA', motivo: 'Prestador de serviço conhecido' });
-ok(r.status === 'OK' && sql(`SELECT status FROM Anomalias WHERE id=${idAlerta}`) === 'DESCARTADA', 'revisão: administrador do cliente descarta o alerta', r);
+r = await op('POST', `/anomalias/${idAlerta}/revisao`, { resultado: 'DESCARTADA', motivo: 'Prestador de serviço conhecido' });
+ok(r.status === 'OK' && sql(`SELECT status FROM Anomalias WHERE id=${idAlerta}`) === 'DESCARTADA', 'revisão: operador do cliente descarta o alerta', r);
+r = await op('POST', '/anomalias/client/1/sinais', { placas: ['ANM1A11'] });
+ok(r.sinais.ANM1A11.anomalia === null, 'sinais: alerta descartado deixa de sinalizar a placa', r);
 r = await adm('GET', `/anomalias/${idAlerta}`);
-ok(r.anomalia.revisoes.length === 1 && r.anomalia.revisoes[0].motivo === 'Prestador de serviço conhecido' && r.anomalia.revisoes[0].User.name === 'Admin Bosque', 'revisão: decisão, motivo e revisor ficam registrados', r.anomalia.revisoes);
+ok(r.anomalia.revisoes.length === 1 && r.anomalia.revisoes[0].motivo === 'Prestador de serviço conhecido' && r.anomalia.revisoes[0].User.name === 'Operador Bosque', 'revisão: decisão, motivo e revisor ficam registrados', r.anomalia.revisoes);
 r = job(`--modo=retroativo --cliente=1 --de=${diaLocal(-1)} --ate=${diaLocal(1)}`);
 ok(r[0].resultado.alertas.mantidos === 1 && sql(`SELECT status FROM Anomalias WHERE id=${idAlerta}`) === 'DESCARTADA', 'reprocessar não reabre nem altera alerta já revisado', r);
 
@@ -197,7 +208,7 @@ r = await adm('GET', '/anomalias/client/1/metricas');
 ok(r.status === 'OK' && r.total_alertas === 1 && r.por_status.DESCARTADA === 1 && r.proporcao_descartados === 1 && r.alertas_duplicados === 0, 'métricas: volume, revisões e duplicados', r);
 ok(r.tempo_medio_revisao_s !== null && r.dados && r.dados.viagens.valida >= 41 && r.execucoes.com_erro === 0 && r.perfis, 'métricas: tempo de revisão, qualidade dos dados e execuções', r);
 r = await op('GET', '/anomalias/client/1/metricas');
-ok(r.status === 'ERROR', 'métricas: operador comum não acessa', r);
+ok(r.status === 'OK' && r.total_alertas === 1, 'métricas: operador do cliente acessa', r);
 r = await adm('GET', '/anomalias/client/2/metricas');
 ok(r.status === 'ERROR', 'métricas: negadas para outro cliente', r);
 
@@ -212,6 +223,10 @@ ok(r.status === 'ERROR', 'métricas: negadas para outro cliente', r);
     'histórico: placa sem tráfego traz as saídas sem entrada do próprio cliente, da mais recente para a mais antiga', r);
   sql(`INSERT INTO Anomalias (id,client_id,chave_veiculo,chave_deduplicacao,tipo,ocorrido_em,score,motivos,evidencias,qualidade_dados,versao_modelo,status,createdAt,updatedAt)
    SELECT 9900,1,'SOS1A11','teste-sos','dia',UTC_TIMESTAMP(),40,'[]','{"evento":{"saida_id":9002,"trafego_id":null}}','{}',versao_modelo,'ABERTA',NOW(),NOW() FROM Anomalias LIMIT 1`);
+  r = await op('POST', '/anomalias/client/1/sinais', { placas: ['SOS1A11'], primeira: ['SOS1A11'] });
+  ok(r.sinais.SOS1A11.anomalia.id === 9900 && r.sinais.SOS1A11.anomalia.faixa === 'observacao'
+    && new Date(r.sinais.SOS1A11.primeira_passagem).getTime() === new Date(sql("SELECT DATE_FORMAT(data,'%Y-%m-%dT%H:%i:%sZ') FROM Saidas_nao_identificadas WHERE id=9001")).getTime(),
+    'sinais: a primeira passagem considera as saídas sem entrada identificada', r);
   r = await adm('GET', '/anomalias/9900');
   ok(r.status === 'OK' && r.trafego === null && r.saida && r.saida.id === 9002 && r.saida.imagem_carro === '/x/s2.jpg', 'detalhe: evento de saída sem entrada traz a saída com a foto', r);
   sql('DELETE FROM Anomalias WHERE id=9900; DELETE FROM Saidas_nao_identificadas WHERE id IN (9001,9002,9003)');

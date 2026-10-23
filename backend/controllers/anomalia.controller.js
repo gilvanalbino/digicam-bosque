@@ -23,6 +23,13 @@ class AnomaliaController {
   }
 
   /**
+   * Sinais dos cards de veículo: último alerta não descartado e primeira passagem de cada placa
+   */
+  async sinaisDasPlacas(loggedUserId, clientId, pedido) {
+    return await consulta.sinaisDasPlacas(loggedUserId, clientId, pedido);
+  }
+
+  /**
    * Registra a revisão humana de um alerta
    */
   async revisar(loggedUserId, id, revisao) {

@@ -192,6 +192,8 @@
         </div>
       </main>
     </div>
+    <!-- Relatório de um alerta de anomalia, aberto pelos cards de veículo e pela tela Anomalias -->
+    <DetalheAnomalia />
   </div>
 </template>
 
@@ -229,6 +231,8 @@ import useTrafegos from '../../composables/useTrafegos';
 import useLogIdentificacao from '../../composables/useLogIdentificacao';
 import useCameras from '../../composables/useCameras';
 
+import DetalheAnomalia from '../../components/DetalheAnomalia.vue';
+
 export default {
   components: {
     Dialog,
@@ -244,6 +248,7 @@ export default {
     ListboxOptions,
     CheckIcon,
     SelectorIcon,
+    DetalheAnomalia,
   },
   props: ['titulo', 'menu'],
   setup(props) {
@@ -277,7 +282,7 @@ export default {
       { name: 'Tráfego', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/')} },
       // { name: 'Tráfego/Saídas', visible: true, icon: BookOpenIcon, action: ()=>{router.replace('/trafegos/saidas')} },
       { name: 'Linha do Tempo', visible: true, icon: ClockIcon, action: ()=>{router.replace('/linha-do-tempo')} },
-      { name: 'Anomalias', visible: user.admin || user.admin_client, icon: ExclamationIcon, action: ()=>{router.replace('/anomalias')} },
+      { name: 'Anomalias', visible: true, icon: ExclamationIcon, action: ()=>{router.replace('/anomalias')} },
       { name: 'Green List', visible: true, icon: SwitchVerticalIcon, action: ()=>{router.replace('/greenList')} },
       { name: 'Red List', visible: true, icon: BanIcon, action: ()=>{router.replace('/redList')} },
       { name: 'Cadastro de Clientes', visible: user.admin, icon: UsersIcon, action: ()=>{router.replace('/clientes')} },

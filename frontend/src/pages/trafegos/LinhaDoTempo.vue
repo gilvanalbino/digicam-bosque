@@ -109,7 +109,10 @@
                 :class="linha.placasDiferentes ? 'bg-blue-100 border-blue-300' : linha.entrada.greenList ? 'white-list border-gray-300' : 'bg-white border-gray-300'"
                 :title="linha.placasDiferentes ? 'Placa da saída diferente da placa da entrada' : null" @click="abrirFotos(linha)">
               <div class="min-w-0 text-right">
-                <p class="text-sm font-bold text-gray-900">{{ linha.entrada.placa }}</p>
+                <p class="text-sm font-bold text-gray-900">
+                  <SinaisVeiculo :placa="linha.entrada.placa" :quando="linha.entrada.quando" class="mr-1" />
+                  {{ linha.entrada.placa }}
+                </p>
                 <p class="text-xs text-green-700">
                   {{ formatarHora(linha.entrada.quando) }}
                   <span v-if="linha.entrada.dia" class="ml-1 rounded bg-amber-100 px-1 font-medium text-amber-800">{{ linha.entrada.dia }}</span>
@@ -156,7 +159,11 @@
               <img v-if="linha.saida.miniatura" class="h-12 w-12 flex-shrink-0 rounded-lg" :src="`/images${linha.saida.miniatura}`" alt="Foto da saída" loading="lazy" />
               <div v-else class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">sem foto</div>
               <div class="min-w-0">
-                <p class="text-sm font-bold text-gray-900">{{ linha.saida.placa }}</p>
+                <p class="text-sm font-bold text-gray-900">
+                  {{ linha.saida.placa }}
+                  <SinaisVeiculo :placa="linha.entrada ? linha.entrada.placa : linha.saida.placa"
+                      :quando="linha.entrada ? linha.entrada.quando : linha.saida.quando" class="ml-1" />
+                </p>
                 <p class="text-xs text-red-700">
                   {{ formatarHora(linha.saida.quando) }}
                   <span v-if="linha.saida.dia" class="ml-1 rounded bg-amber-100 px-1 font-medium text-amber-800">{{ linha.saida.dia }}</span>
@@ -192,6 +199,7 @@ import { notify } from 'notiwind';
 import Main from '../layout/Main.vue';
 import ModalDialog from '../../components/ModalDialog.vue';
 import CampoData from '../../components/CampoData.vue';
+import SinaisVeiculo from '../../components/SinaisVeiculo.vue';
 
 import useLogin from '../../composables/useLogin';
 import useClientes from '../../composables/useClientes';
@@ -207,7 +215,7 @@ const PASSO = 150;
 // Linha do tempo de um dia, com as entradas à esquerda e as saídas à direita. Cada registro ocupa uma faixa;
 // quando o veículo entrou e saiu, os dois pontos são ligados e a permanência aparece na ligação.
 export default {
-  components: { Main, ModalDialog, CampoData },
+  components: { Main, ModalDialog, CampoData, SinaisVeiculo },
   setup() {
     const hoje = () => {
       const agora = new Date();

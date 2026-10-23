@@ -338,7 +338,7 @@ Os dez critérios do item 15 da especificação valem como estão, com dois ajus
 |---|---|---|
 | P1 | Base do desenvolvimento: branch nova a partir de `feature/abas-trafego-conciliacao` ou de `develop` | a partir da feature, que traz `status` em `Saidas_nao_identificadas` e o utilitário de placas; publicar a conciliação em produção antes do detector |
 | P2 | Veículos da green list entram na análise? | entram, com o contexto exibido; alertas deles podem ter limite mais alto |
-| P3 | Quem revisa e quem só consulta | administrador do sistema e do cliente revisam; operador não vê a tela na primeira versão |
+| P3 | Quem revisa e quem só consulta | administrador do sistema e do cliente revisam; operador não vê a tela na primeira versão. **Alterado em 13/10/2026:** operadores do cliente também veem e revisam (item 16.3) |
 | P4 | Volume máximo aceitável de alertas por dia | definir com a equipe antes do modo sombra |
 | P5 | Retenção de alertas, revisões e referências, e base legal (LGPD) | definir com o cliente; a pseudonimização no processamento fica em aberto, já que a tela precisa exibir a placa |
 | P6 | Feriados | sem calendário na primeira versão; avaliar depois da retrospectiva |
@@ -407,6 +407,7 @@ Janela de 90 dias até 10/10/2026, 60.130 tráfegos e 92.161 saídas sem entrada
 | Usuário de banco próprio | recomendado | não criado: o job usa o usuário da aplicação | fica para a implantação |
 | Primeira execução | não especificada; implementada com carga dos últimos 30 dias | **sem carga retroativa** (13/10/2026): só são avaliados os veículos que entram ou saem dali em diante; ciclo de 1 minuto no HML | decisão do usuário: calcular sob demanda, não em lote sobre o passado |
 | Green list (P2) | entra na análise, com o contexto exibido | **não é avaliada** (13/10/2026): placa que está na green list atual do cliente não gera alerta; modelo `1.1.0` | decisão do usuário |
+| Acesso (P3) | só administradores veem e revisam | **todos os usuários do cliente** veem e revisam, inclusive operadores (13/10/2026); os cards de veículo das telas Tráfego, Saídas e Linha do Tempo mostram um ícone quando a placa tem alerta não descartado, que abre o relatório do alerta mais recente, e a marca "1ª vez" na primeira passagem da placa | decisão do usuário |
 | Baixa manual | categoria própria, excluída | conta como **entrada sem saída**, junto com a viagem aberta (13/10/2026); o histórico do veículo mostra "sem saída" | decisão do usuário: sem leitura de câmera, a saída não foi observada. A pontuação não muda |
 
 Os parâmetros estão todos em `backend/services/anomalia/parametros.js`, com a versão do modelo (`1.1.0` desde que a
@@ -437,8 +438,8 @@ não foram recalculados depois da correção.
 
 - **Calibração com a equipe (Fase 6):** revisar uma amostra de alertas e de eventos não alertados, definir o
   volume aceitável (P4) e o critério de relevância (P9), ajustar limiares e pesos.
-- **Decisões pendentes do item 15:** foram seguidas as recomendações (só administradores veem e revisam; sem
-  feriados; fuso do container), exceto na green list, que não é avaliada. Retenção e LGPD (P5) continuam abertas:
+- **Decisões pendentes do item 15:** foram seguidas as recomendações (sem feriados; fuso do container), exceto na green list, que não é avaliada, e no
+  acesso, aberto também aos operadores do cliente. Retenção e LGPD (P5) continuam abertas:
   só as referências têm limpeza automática (180 dias).
 - **Implantação em produção (Fase 7):** depende de publicar a conciliação nova, aplicar as migrações e subir o
   job em projeto compose próprio, com usuário de banco de leitura.
