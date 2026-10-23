@@ -287,8 +287,8 @@ const associar = async (loggedUserId, id, trafegoId) => {
 const MAX_DIFERENCAS_PLACA_PROXIMA = 1;
 
 /**
- * Procura, entre os veículos em travessia do cliente (os mesmos da aba Em Travessia), a entrada de placa mais
- * próxima da placa lida na saída. No empate vale a entrada mais recente. Retorna null quando nenhuma serve.
+ * Procura, entre os veículos em travessia do cliente (os mesmos da aba Em Travessia) com entrada de até 72 h antes
+ * da saída, a entrada de placa mais próxima da placa lida na saída. No empate vale a entrada mais recente. Retorna null quando nenhuma serve.
  * Uma placa de saída que está na green list foi lida corretamente e não é casada por aproximação.
  */
 const obterEntradaPorPlacaProxima = async (clientId, placa, dataSaida) => {
@@ -301,7 +301,11 @@ const obterEntradaPorPlacaProxima = async (clientId, placa, dataSaida) => {
       client_id: clientId,
       destino: 'cruzar',
       dataSaida: null,
-      dataEntrada: { [Op.lte]: dataSaida },
+      // mesma janela de 72 h da saída pela placa exata (trafego.service, JANELA_SAIDA_AUTOMATICA_MS)
+      dataEntrada: {
+        [Op.lte]: dataSaida,
+        [Op.gte]: new Date(new Date(dataSaida).getTime() - trafegoService.JANELA_SAIDA_AUTOMATICA_MS),
+      },
       [Op.or]: [
         { in_whitelist: { [Op.not]: true } },
         { dataEntrada: { [Op.gt]: new Date(Date.now() - TEMPO_GREEN_LIST_NA_FILA_MS) } },

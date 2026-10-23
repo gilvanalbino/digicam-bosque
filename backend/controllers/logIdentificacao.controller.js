@@ -172,7 +172,11 @@ class LogIdentificacaoController {
 
     // fazendo inicialmente uma baixa manual, para minimizar problemas de download de imagem
     if (camera.sentido === 'S') {
-      const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(loggedUserId, newLogIdentificacao.placa);
+      const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(
+        loggedUserId,
+        newLogIdentificacao.placa,
+        newLogIdentificacao.data
+      );
       if (trafegoEntrada) {
         trafegoEntrada.user_reg_saida = loggedUserId;
         trafegoEntrada.saida_automatica = false;
@@ -394,7 +398,12 @@ class LogIdentificacaoController {
 
   async tentarRegistrarSaidaAutomatica(loggedUserId, id) {
     const logIdentificacao = await logIdentificacaoService.get(id);
-    const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(loggedUserId, logIdentificacao.placa);
+    const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(
+      loggedUserId,
+      logIdentificacao.placa,
+      logIdentificacao.data,
+      logIdentificacao.identificador_placa
+    );
     if (trafegoEntrada) {
       const now = new Date();
       const folder = `/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;

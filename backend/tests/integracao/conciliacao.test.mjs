@@ -322,6 +322,31 @@ if (BACKEND_CONTAINER) {
   ok(x === null, 'associação automática: entrada que já saiu não recebe outra saída', x);
   sql("DELETE FROM Saidas_nao_identificadas WHERE identificador_placa IN ('s-47','s-48')");
   sql('DELETE FROM Trafegos WHERE id IN (71,72,73,74)');
+
+  // saída pela placa exata: só entrada sem saída e de até 72 h; entrada já fechada nunca é sobrescrita
+  sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,identificador_placa_saida,createdAt,updatedAt) VALUES
+   (76,'EXA1A11',UTC_TIMESTAMP()-INTERVAL 80 HOUR,NULL,'cruzar',1,1,NULL,NOW(),NOW()),
+   (77,'EXB1B11',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,UTC_TIMESTAMP()-INTERVAL 5 MINUTE,'cruzar',1,1,'s-89',NOW(),NOW()),
+   (78,'EXC1C11',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,UTC_TIMESTAMP()-INTERVAL 1 MINUTE,'cruzar',1,1,'s-90',NOW(),NOW()),
+   (79,'EXD1D11',UTC_TIMESTAMP()-INTERVAL 20 HOUR,NULL,'cruzar',1,1,NULL,NOW(),NOW()),
+   (80,'EXD1D11',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,NULL,'cruzar',1,1,NULL,NOW(),NOW()),
+   (81,'APW1A23',UTC_TIMESTAMP()-INTERVAL 80 HOUR,NULL,'cruzar',1,1,NULL,NOW(),NOW())`);
+  const t = "const s=require('./services/trafego.service'); const fim=(v)=>{console.log(JSON.stringify(v)); process.exit(0)};";
+  x = noBackend(`${t} s.obterRegistroEntradaSemSaida(1,'EXA1A11',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'saída exata: entrada com mais de 72 h não recebe a saída', x);
+  x = noBackend(`${t} s.obterRegistroEntradaSemSaida(1,'EXB1B11',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'saída exata: entrada já fechada (sem foto de saída) não tem a saída sobrescrita', x);
+  x = noBackend(`${t} s.obterRegistroEntradaSemSaida(1,'EXC1C11',new Date(),'s-90').then((e)=>fim(e&&e.id))`);
+  ok(x === 78, 'saída exata: segundo passo (fotos) acha a entrada fechada por esta mesma leitura', x);
+  x = noBackend(`${t} s.obterRegistroEntradaSemSaida(1,'EXC1C11',new Date(),'s-91').then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'saída exata: outra leitura não reaproveita a entrada fechada', x);
+  x = noBackend(`${t} s.obterRegistroEntradaSemSaida(1,'EXD1D11',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === 80, 'saída exata: com duas entradas abertas, vale a mais recente', x);
+  x = noBackend(`${t} s.obterRegistroEntradaSemSaida(1,'EXD1D11',new Date(Date.now()-3600000)).then((e)=>fim(e&&e.id))`);
+  ok(x === 79, 'saída exata: entrada posterior à leitura não serve', x);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'APW1A28',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === null, 'placa próxima: entrada com mais de 72 h não é associada', x);
+  sql('DELETE FROM Trafegos WHERE id IN (76,77,78,79,80,81)');
 }
 
 // ---------------- linha do tempo do dia

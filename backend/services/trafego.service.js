@@ -450,32 +450,49 @@ const remove = async (loggedUserId, removedTrafegoId) => {
   }
 };
 
-const obterRegistroEntradaSemSaida = async (loggedUserId, placa) => {
-  console.log('------------------------------');
-  console.log(' obterRegistroEntradaSemSaida ');
-  console.log('------------------------------\n\n');
+// a saída lida pela câmera só é casada automaticamente com entrada de até 72 h antes da leitura; entrada mais
+// antiga sem saída é tratada pelo operador (a saída fica como sem entrada identificada)
+const JANELA_SAIDA_AUTOMATICA_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Entrada que recebe a saída lida pela câmera, pela placa exata.
+ *
+ * A saída é gravada em dois passos: na leitura (sem foto) e depois do download das fotos. Com
+ * `identificadorSaida`, devolve primeiro a entrada que o primeiro passo já fechou com essa mesma leitura.
+ * Fora isso, só serve entrada ainda sem saída e com até 72 h antes da leitura: uma entrada já fechada
+ * (pela câmera ou pelo porteiro) nunca tem a saída sobrescrita.
+ */
+const obterRegistroEntradaSemSaida = async (loggedUserId, placa, dataLeitura, identificadorSaida) => {
   const loggedUser = await User.findByPk(loggedUserId);
   if (!loggedUser) {
     throw Error('Informar usuário logado');
   }
-  let trafegoEntrada = null;
-  if (
-    loggedUser.admin ||
-    loggedUser.client_id === trafego.client_id // cliente não pode cadastrar trafego em outro cliente
-  ) {
-    const params = {
-      logging: console.log, // log SQL statement to console
-      where: {
-        placa,
-        imagem_saida: null,
-      },
-      order: [['id', 'DESC']],
-    };
-    // somente a placa exata: leituras com erro de OCR não são casadas por aproximação e ficam como
-    // saída sem entrada identificada, para o operador associar na tela
-    trafegoEntrada = await Trafego.findOne(params);
-    console.log(placa, ' - Obtendo Registro Entrada - placa completa: ', trafegoEntrada);
+  // usuário de cliente só registra saída em tráfego do próprio cliente
+  const doCliente = loggedUser.admin ? {} : { client_id: loggedUser.client_id };
+  if (identificadorSaida) {
+    const fechadaPorEstaLeitura = await Trafego.findOne({
+      where: { ...doCliente, identificador_placa_saida: identificadorSaida, imagem_saida: null },
+    });
+    if (fechadaPorEstaLeitura) {
+      return fechadaPorEstaLeitura;
+    }
   }
+  const leitura = dataLeitura ? new Date(dataLeitura) : new Date();
+  // somente a placa exata: leituras com erro de OCR vão para a associação por placa próxima ou ficam como
+  // saída sem entrada identificada, para o operador associar na tela
+  const trafegoEntrada = await Trafego.findOne({
+    where: {
+      ...doCliente,
+      placa,
+      dataSaida: null,
+      dataEntrada: {
+        [Op.gte]: new Date(leitura.getTime() - JANELA_SAIDA_AUTOMATICA_MS),
+        [Op.lte]: leitura,
+      },
+    },
+    order: [['dataEntrada', 'DESC']],
+  });
+  console.log(placa, ' - Obtendo Registro Entrada - placa completa: ', trafegoEntrada && trafegoEntrada.id);
   return trafegoEntrada;
 };
 
@@ -527,6 +544,7 @@ module.exports = {
   updateTrafegoDB,
   remove,
   obterRegistroEntradaSemSaida,
+  JANELA_SAIDA_AUTOMATICA_MS,
   updateWhiteList,
   removeWhiteList,
   updateBlackList,
