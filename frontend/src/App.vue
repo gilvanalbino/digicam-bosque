@@ -120,12 +120,14 @@
           </div>
         </div>
       </NotificationGroup>
+      <FaixaAmbiente />
       <router-view />
     </body>
     </html>
 </template>
 
 <script setup>
+import FaixaAmbiente from './components/FaixaAmbiente.vue';
 </script>
 
 <style>

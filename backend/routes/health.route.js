@@ -1,5 +1,10 @@
 const databaseHealth = require('../middleware/database-health');
 
+// ambiente em que o backend roda, para o frontend exibir a faixa de homologação. Sem a variável AMBIENTE,
+// é deduzido do banco: o HML usa o banco digicam_hml (homologacao/docker-compose.yml).
+const ambiente = () =>
+  process.env.AMBIENTE || (/hml|homolog/i.test(process.env.DATABASE_NAME || '') ? 'homologacao' : 'producao');
+
 class HealthRoutes {
   constructor(context) {
     this.context = context;
@@ -26,6 +31,7 @@ class HealthRoutes {
               timestamp: new Date().toISOString(),
               service: 'digicam-backend',
               version: '1.0.0',
+              ambiente: ambiente(),
               database: healthStatus
             };
 
