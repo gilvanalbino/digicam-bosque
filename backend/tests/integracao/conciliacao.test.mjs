@@ -289,7 +289,7 @@ if (BACKEND_CONTAINER) {
   sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,createdAt,updatedAt) VALUES
    (71,'APY1A23',UTC_TIMESTAMP()-INTERVAL 10 MINUTE,NULL,'cruzar',1,1,NOW(),NOW()),
    (72,'APY1B24',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,NULL,'cruzar',1,1,NOW(),NOW()),
-   (73,'APY1A29',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,NULL,'servico',1,1,NOW(),NOW()),
+   (73,'APY1A29',UTC_TIMESTAMP()-INTERVAL 15 MINUTE,NULL,'servico',1,1,NOW(),NOW()),
    (74,'APY1A28',UTC_TIMESTAMP()-INTERVAL 5 MINUTE,NULL,'cruzar',2,2,NOW(),NOW())`);
   const noBackend = (codigo) =>
     JSON.parse(
@@ -298,7 +298,15 @@ if (BACKEND_CONTAINER) {
     );
   const base = "const s=require('./services/saidaNaoIdentificada.service'); const fim=(v)=>{console.log(JSON.stringify(v)); process.exit(0)};";
   let x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'APY1A28',new Date()).then((e)=>fim(e&&e.id))`);
-  ok(x === 71, 'placa próxima: escolhe a entrada em travessia mais parecida, do próprio cliente', x);
+  ok(x === 71, 'placa próxima: escolhe a entrada mais parecida e mais recente, do próprio cliente', x);
+  sql(`INSERT INTO Trafegos (id,placa,dataEntrada,dataSaida,destino,client_id,portaria_entrada_id,createdAt,updatedAt) VALUES
+   (82,'SVC3B45',UTC_TIMESTAMP()-INTERVAL 30 MINUTE,NULL,'servico',1,1,NOW(),NOW()),
+   (83,'MOR4C56',UTC_TIMESTAMP()-INTERVAL 30 MINUTE,NULL,'morador',1,1,NOW(),NOW())`);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'SVC3B46',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === 82, 'placa próxima: entrada de serviço também recebe a saída por placa parecida', x);
+  x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'M0R4C56',new Date()).then((e)=>fim(e&&e.id))`);
+  ok(x === 83, 'placa próxima: entrada de visitante (casa de morador) também recebe a saída por placa parecida', x);
+  sql('DELETE FROM Trafegos WHERE id IN (82,83)');
   x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'ZZZ9Z99',new Date()).then((e)=>fim(e&&e.id))`);
   ok(x === null, 'placa próxima: placa distante não é associada', x);
   x = noBackend(`${base} s.obterEntradaPorPlacaProxima(1,'APY1A28',new Date(Date.now()-3600000)).then((e)=>fim(e&&e.id))`);
