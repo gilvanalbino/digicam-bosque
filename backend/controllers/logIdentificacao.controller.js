@@ -328,6 +328,15 @@ class LogIdentificacaoController {
       console.log('Erro obtendo imagem do carro', e);
     }
 
+    // arquivo vazio no FTP (câmera gravou a foto pela metade) é tratado como foto não localizada
+    if (imagemPlaca && imagemPlaca.length === 0) {
+      imagemPlaca = null;
+    }
+    if (imagemCarro && imagemCarro.length === 0) {
+      console.log('Imagem do carro vazia, ignorada');
+      imagemCarro = null;
+    }
+
     if (imagemCarro) {
       console.log(`\n==== salvando no banco de dados ====== logIdentificacao ID: ${id}`);
       await logIdentificacaoService.updateImages(loggedUserId, logIdentificacao.id, imagemPlaca, imagemCarro);

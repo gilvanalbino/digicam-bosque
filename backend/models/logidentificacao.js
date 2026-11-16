@@ -22,8 +22,10 @@ module.exports = (sequelize, DataTypes) => {
       imagem_carro: {
         type: DataTypes.BLOB('long'),
         get() {
-          if (this.getDataValue('imagem_carro')) {
-            return 'data:image/jpeg;base64,' + this.getDataValue('imagem_carro').toString('base64');
+          // foto gravada vazia (arquivo de 0 bytes no FTP) conta como sem foto
+          const imagem = this.getDataValue('imagem_carro');
+          if (imagem && imagem.length > 0) {
+            return 'data:image/jpeg;base64,' + imagem.toString('base64');
           } else {
             return null;
           }
@@ -32,8 +34,10 @@ module.exports = (sequelize, DataTypes) => {
       imagem_placa: {
         type: DataTypes.BLOB('long'),
         get() {
-          if (this.getDataValue('imagem_placa')) {
-            return 'data:image/jpeg;base64,' + this.getDataValue('imagem_placa').toString('base64');
+          // foto gravada vazia (arquivo de 0 bytes no FTP) conta como sem foto
+          const imagem = this.getDataValue('imagem_placa');
+          if (imagem && imagem.length > 0) {
+            return 'data:image/jpeg;base64,' + imagem.toString('base64');
           } else {
             return null;
           }
