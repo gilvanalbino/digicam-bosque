@@ -1,0 +1,9 @@
+av==18.1.0
+fast-alpr[onnx]==0.4.0
+fastapi==0.163.1
+numpy==2.4.6
+onnxruntime==1.32.0
+opencv-python-headless==5.0.0.93
+PyMySQL==1.2.4
+PyYAML==6.0.3
+uvicorn==0.38.0

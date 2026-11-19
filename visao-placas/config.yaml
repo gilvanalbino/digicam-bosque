@@ -1,0 +1,47 @@
+# Protótipo de identificação por vídeo: Entrada B2 (câmera id 5, 10.0.0.187, canal 101: 1920x1080, 30 qps).
+# A URL do vídeo, com a senha, vem da variável CAMERA_URL; o banco do HML, das variáveis DATABASE_*.
+camera_id: 5
+portaria_id: 3
+nome_camera: Entrada B2
+
+# quadros analisados por segundo (o resto é só decodificado)
+qps: 5
+
+# linha virtual em pixels do quadro 1920x1080. Quem começa de um lado e termina do lado do ponto_dentro entrou.
+# Na B2 o veículo que entra aparece no alto (de frente), para na cancela e sai da imagem pela esquerda, embaixo;
+# a linha é a diagonal que separa as duas regiões, e a âncora é o centro da caixa (a caixa é cortada na borda).
+# Conferido no vídeo de 16/11 17:58-18:06 (KYZ5042, BAM2H48 e uma Ranger que a câmera não registrou).
+linha:
+  p1: [0, 150]
+  p2: [1100, 1080]
+  ponto_dentro: [100, 900]
+  margem: 15
+  ancora: centro
+
+# área de interesse (polígono); veículos com a base da caixa fora dela são ignorados. Vazia = quadro inteiro.
+# Fica de fora o canto de baixo à direita, onde a caixa da outra cancela é detectada como veículo.
+area: [[0, 0], [1920, 0], [1920, 760], [1680, 760], [1680, 1080], [0, 1080]]
+
+# segundos sem ver o veículo para fechar a passagem
+tempo_perdido: 3.0
+
+# o modelo YOLOX-tiny tem entrada fixa de 416 px. Com 0,35 o detector perdia à noite os carros chegando com o
+# farol aceso (vídeo de 16/11 19:14-19:24: 1 de 3 entradas); com 0,25 achou as 3, com placa
+detector:
+  tamanho: 416
+  confianca: 0.25
+  threads: 2
+
+placa:
+  threads: 1
+  confianca_minima: 0.5
+  max_tentativas: 15
+  # caixas de veículo menores que isto (pixels²) não passam pela leitura de placa
+  area_minima_veiculo: 20000
+
+comparacao:
+  tolerancia_s: 20
+
+retencao:
+  limite_gb: 2
+  dias: 15

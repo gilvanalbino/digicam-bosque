@@ -128,5 +128,28 @@ services:
     restart: unless-stopped
     logging: *log
 
+  # protótipo da segunda camada de identificação por vídeo (visao-placas/): assiste à Entrada B2 (canal 101),
+  # registra as passagens com foto e placa e compara com as entradas da câmera. Só lê o banco do HML; não grava
+  # em Trafegos nem LogIdentificacao. Sobe só com --profile visao. Página em /visao/ (login do sistema).
+  visao_b2:
+    image: digicam-visao:hml-${VISAO_TAG}
+    profiles: ["visao"]
+    volumes:
+      - /home/digicam/hml/visao:/data
+    environment:
+      - TZ=America/Bahia
+      - CAMERA_URL=rtsp://admin:${CAMERA_SENHA_URL}@10.0.0.187:554/Streaming/Channels/101
+      - DATABASE_HOST=mysql
+      - DATABASE_USER=digicam_hml
+      - DATABASE_PASS=${HML_DB_SENHA}
+      - DATABASE_NAME=digicam_hml
+    depends_on:
+      mysql:
+        condition: service_healthy
+    mem_limit: 2g
+    cpus: 3
+    restart: unless-stopped
+    logging: *log
+
 volumes:
   mysql_hml_data:
