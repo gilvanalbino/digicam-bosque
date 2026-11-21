@@ -64,6 +64,43 @@ curl -s -o /dev/null -w '%{http_code}\n' -H 'Connection: Upgrade' -H 'Upgrade: w
 
 Com o túnel apontando para o HML (porta 8081), o mesmo trecho serve: o nginx do HML também atende `/video/ws`.
 
+### Avisos em tempo real pelo domínio (SSE no nginx da AWS)
+
+Desde a `r86` (2026-11-21) as telas recebem avisos em tempo real do backend em `/digicam/eventos/client/{id}`
+(Server-Sent Events): quando um tráfego ou uma saída sem entrada muda, a lista recarrega na hora. Com o buffer
+padrão do nginx da AWS os avisos ficavam presos e as telas acessadas pelo domínio caíam na consulta de reserva de
+5 s. Em 2026-11-21 foi acrescentado, no `server` de `digicam.efabrika.com.br` na AWS, antes do `location /`:
+
+```nginx
+location /digicam/eventos/ {
+    proxy_pass http://127.0.0.1:18081;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+    access_log off;   # a URL leva o token de login
+}
+```
+
+e aplicado com `sudo nginx -t && sudo systemctl reload nginx`. `proxy_buffering off` é o essencial; o
+`proxy_read_timeout` longo mantém a conexão (o backend manda um comentário a cada 25 s). O token vai na URL porque o
+`EventSource` do navegador não envia cabeçalhos. Como o trecho do `/video/ws`, foi aplicado diretamente na AWS; se a
+configuração de lá for refeita, ele precisa voltar. Os nginx de produção (`/home/digicam/nginx.conf`) e do HML
+(`homologacao/nginx.conf`) têm o bloco equivalente.
+
+Para conferir (deve aparecer `event: conectado` na hora e `event: trafegos` a cada mudança no tráfego; sem token, a
+resposta traz `401 Missing authentication`):
+
+```bash
+curl -sN "https://digicam.efabrika.com.br/digicam/eventos/client/2?token=<token>"
+```
+
+Conferido em 2026-11-21: os avisos chegaram pelo domínio no mesmo segundo que pela rede interna.
+
 Em 2026-10-23 o domínio respondeu sem pedir a senha do nginx da AWS descrita no item 4.1; a única proteção na
 frente da produção é o login da própria aplicação. O restante deste documento é o plano original, escrito para o
 HML.
