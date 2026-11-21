@@ -21,6 +21,7 @@ const BlackListRoutes = require('./routes/blackList.route');
 const HealthRoutes = require('./routes/health.route');
 const VideoRoutes = require('./routes/video.route');
 const IdentificacaoRoutes = require('./routes/identificacao.route');
+const EventosRoutes = require('./routes/eventos.route');
 
 const HapiSwagger = require('hapi-swagger');
 const Vision = require('@hapi/vision');
@@ -87,6 +88,7 @@ const init = async () => {
     ...mapRoutes(new HealthRoutes(CONTEXT), HealthRoutes.methods()),
     ...mapRoutes(new VideoRoutes(CONTEXT), VideoRoutes.methods()),
     ...mapRoutes(new IdentificacaoRoutes(CONTEXT), IdentificacaoRoutes.methods()),
+    ...mapRoutes(new EventosRoutes(CONTEXT), EventosRoutes.methods()),
   ]);
 
   await server.register({

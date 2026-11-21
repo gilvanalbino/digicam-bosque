@@ -8,7 +8,6 @@ const SFTP_PASS = process.env.SFTP_PASS;
 console.log("SFTP_FOST:", SFTP_HOST);
 console.log("SFTP_PORT:", SFTP_PORT);
 console.log("SFTP_USER:", SFTP_USER);
-console.log("SFTP_PASS:", SFTP_PASS);
 
 
 const conectar = async (sftp) => {
@@ -51,7 +50,37 @@ const lerArquivo = async (folder, file) => {
   }
 };
 
+/**
+ * Numa conexão só, lista a pasta uma vez (filtrando pelo padrão) e lê o arquivo escolhido por cada seletor.
+ * Cada operação de FTP leva ~0,6 s (conexão + listagem de uma pasta com milhares de fotos); fazer tudo na mesma
+ * conexão tira ~1,5 s de cada leitura de placa. Retorna, para cada seletor, { arquivo, conteudo } (null se faltar).
+ */
+const lerFotos = async (folder, pattern, seletores) => {
+  const sftp = new Client();
+  try {
+    await conectar(sftp);
+    const arquivos = await sftp.list("ftp/" + folder, pattern);
+    const resultados = [];
+    for (const selecionar of seletores) {
+      const arquivo = selecionar(arquivos);
+      let conteudo = null;
+      if (arquivo) {
+        try {
+          conteudo = await sftp.get(`ftp/${folder}/${arquivo.name}`);
+        } catch (error) {
+          console.log('Erro lendo foto', arquivo.name, error.message);
+        }
+      }
+      resultados.push({ arquivo, conteudo });
+    }
+    return resultados;
+  } finally {
+    desconectar(sftp);
+  }
+};
+
 module.exports = {
   listarArquivos,
   lerArquivo,
+  lerFotos,
 };

@@ -9,6 +9,7 @@ import {
 import useLogin from './useLogin';
 import useClientes from './useClientes';
 import useTrafegos from './useTrafegos';
+import useTempoReal from './useTempoReal';
 
 const initialState = {
   // saídas da última hora: as associadas a uma entrada (campo "entrada") e as pendentes, sem entrada identificada
@@ -123,15 +124,28 @@ const actions = {
   },
 };
 
-setInterval(async () => {
-  if (ativo && clientId()) {
-    try {
-      await actions.carregarSaidas();
-    } catch (error) {
-      console.log('Erro recarregando as saídas', error);
-    }
+// recarrega as saídas na hora quando o backend avisa (SSE) e, por consulta periódica, a cada 5 s sem os avisos ou a
+// cada 30 s com eles. Associar uma saída mexe no tráfego, então os avisos de tráfego também recarregam as saídas.
+let ultimaCargaSaidas = 0;
+let carregandoSaidas = false;
+const recarregarSaidas = async () => {
+  if (!ativo || !clientId() || carregandoSaidas) return;
+  carregandoSaidas = true;
+  try {
+    await actions.carregarSaidas();
+    ultimaCargaSaidas = Date.now();
+  } catch (error) {
+    console.log('Erro recarregando as saídas', error);
+  } finally {
+    carregandoSaidas = false;
   }
+};
+setInterval(() => {
+  if (useTempoReal.estado.conectado && Date.now() - ultimaCargaSaidas < 30000) return;
+  recarregarSaidas();
 }, 5000);
+useTempoReal.aoMudar('saidas', recarregarSaidas);
+useTempoReal.aoMudar('trafegos', recarregarSaidas);
 
 // só uma saída ainda sem entrada pode ser associada, e a uma entrada que aconteceu antes dela
 export const podeAssociar = (entrada, saida) =>

@@ -10,8 +10,14 @@ const { diferencasPlacas } = require('../placaUtil');
 const TOLERANCIA_MS = 20 * 1000;
 // enquanto o software ainda não informou o cruzamento, a passagem é considerada aberta por até este tempo
 const PASSAGEM_ABERTA_MS = 2 * 60 * 1000;
-// tempo máximo de espera pela leitura do software quando a câmera chega primeiro (decidido em 19/11)
-const ESPERA_SOFTWARE_MS = 5 * 1000;
+// tempo máximo de espera pela leitura do software quando a câmera chega primeiro (5 s decididos em 19/11, reduzidos
+// para 2 s em 21/11 para a entrada aparecer mais rápido; se o software chegar depois, a correção tardia troca a placa
+// no mesmo registro)
+const ESPERA_SOFTWARE_MS = 2 * 1000;
+// passagem vista pelo software sem leitura da câmera: espera este tempo depois do cruzamento antes de registrar a
+// entrada ou a saída só pelo software (era 20 s). A câmera lê o veículo na chegada, antes de ele cruzar a linha, e a
+// leitura chega ao backend em ~2,5 s; se ainda assim chegar depois, entra no mesmo registro (leitura_camera_tardia).
+const ESPERA_CAMERA_APOS_PASSAGEM_MS = 5 * 1000;
 // na divergência, o software só vence com a placa lida em pelo menos este número de quadros. Avaliação no HML em
 // 21/11: os erros do software vinham de placas lidas em 1 ou 2 quadros (placa pequena, de longe); os acertos, de 9 a
 // 13 quadros. A confiança do OCR não separa os dois casos (0,93 a 1,00 em todos).
@@ -88,6 +94,46 @@ const decidirPlaca = ({ placaCamera, placaSoftware, softwareLigado, placaCameraN
   return { placa: placaCamera, fonte: 'camera', divergente: true };
 };
 
+// passagem do software que repete outra da mesma câmera: o rastreador perdeu o veículo (caixa mudando muito de
+// tamanho perto da câmera) e abriu um rastro novo para ele. Caso real: SRO2I81 na Saída B2 em 21/11, dois rastros
+// com 0,4 s de diferença, o segundo virou uma segunda saída sem entrada.
+const JANELA_DUPLICATA_MS = 60 * 1000;
+
+/**
+ * Entre as outras identificações da mesma câmera, acha a que já representa este veículo: placa igual ou a 1
+ * caractere (de qualquer leitura: câmera, software ou final) e horário a até JANELA_DUPLICATA_MS.
+ */
+const acharDuplicata = (passagem, outras) => {
+  const t = tempo(passagem.instante_software_inicio);
+  const placa = passagem.placa_software;
+  if (!placa) return null;
+  return (
+    outras.find((o) => {
+      if (o.id === passagem.id || o.situacao === 'descartada') return false;
+      const to = tempo(o.instante_camera) ?? tempo(o.instante_software_inicio);
+      if (to == null || Math.abs(to - t) > JANELA_DUPLICATA_MS) return false;
+      return [o.placa_final, o.placa_camera, o.placa_software].some((p) => p && diferencasPlacas(p, placa) <= 1);
+    }) || null
+  );
+};
+
+// a câmera às vezes lê o mesmo veículo duas vezes em 1 ou 2 s, com 1 caractere diferente (caso real: TTB1894 e
+// TTB1B94 na Saída B2 em 21/11, que viraram duas saídas sem entrada)
+const JANELA_LEITURA_REPETIDA_MS = 10 * 1000;
+
+/** Identificação da mesma câmera que esta leitura repete (placa igual ou a 1 caractere, até 10 s), ou null. */
+const acharLeituraRepetida = (leitura, outras) => {
+  const t = tempo(leitura.data);
+  return (
+    outras.find((o) => {
+      if (o.situacao === 'descartada') return false;
+      const to = tempo(o.instante_camera) ?? tempo(o.instante_software_inicio);
+      if (to == null || Math.abs(to - t) > JANELA_LEITURA_REPETIDA_MS) return false;
+      return [o.placa_camera, o.placa_software, o.placa_final].some((p) => p && diferencasPlacas(p, leitura.placa) <= 1);
+    }) || null
+  );
+};
+
 /** Direção que o software deve ver numa câmera de entrada (E) ou de saída (S). */
 const direcaoEsperada = (sentidoCamera) => (sentidoCamera === 'S' ? 'saida' : 'entrada');
 
@@ -157,6 +203,7 @@ module.exports = {
   TOLERANCIA_MS,
   PASSAGEM_ABERTA_MS,
   ESPERA_SOFTWARE_MS,
+  ESPERA_CAMERA_APOS_PASSAGEM_MS,
   LEITURAS_MINIMAS_SOFTWARE,
   normalizarPlaca,
   placaValida,
@@ -165,6 +212,10 @@ module.exports = {
   escolherCameraParaSoftware,
   decidirPlaca,
   direcaoEsperada,
+  acharDuplicata,
+  JANELA_DUPLICATA_MS,
+  acharLeituraRepetida,
+  JANELA_LEITURA_REPETIDA_MS,
   eventoHistorico,
   validarConfigSoftware,
 };

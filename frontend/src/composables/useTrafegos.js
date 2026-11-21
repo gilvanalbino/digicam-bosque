@@ -11,6 +11,7 @@ import {
 
 import useLogin from './useLogin';
 import useClientes from './useClientes';
+import useTempoReal from './useTempoReal';
 
 import { calcularPermanencia } from '../utils/dateUtil';
 
@@ -248,18 +249,38 @@ const calcPermanencia = () => {
 };
 setInterval(calcPermanencia, 1000);
 
-// timer para recarregar os trafegos
+// recarrega os trafegos: na hora, quando o backend avisa uma mudança (SSE), e por consulta periódica, a cada 5 s
+// sem os avisos ou a cada 30 s com eles (só como reserva)
+const RESERVA_COM_AVISOS_MS = 30000;
+let ultimaCarga = 0;
+let carregando = false;
+let pendente = false;
 const recarregarTrafegos = async () => {
-  if (useClientes.state.clientes.selecionado) {
-    try {
-      await actions.carregarTrafegos(useClientes.state.clientes.selecionado.id);
-    } catch (error) {
-      // tenta novamente no próximo ciclo
-      console.log('Erro recarregando trafegos', error);
+  if (!useClientes.state.clientes.selecionado) return;
+  if (carregando) {
+    pendente = true;
+    return;
+  }
+  carregando = true;
+  try {
+    await actions.carregarTrafegos(useClientes.state.clientes.selecionado.id);
+    ultimaCarga = Date.now();
+  } catch (error) {
+    // tenta novamente no próximo ciclo
+    console.log('Erro recarregando trafegos', error);
+  } finally {
+    carregando = false;
+    if (pendente) {
+      pendente = false;
+      recarregarTrafegos();
     }
   }
 };
-setInterval(recarregarTrafegos, 5000);
+setInterval(() => {
+  if (useTempoReal.estado.conectado && Date.now() - ultimaCarga < RESERVA_COM_AVISOS_MS) return;
+  recarregarTrafegos();
+}, 5000);
+useTempoReal.aoMudar('trafegos', recarregarTrafegos);
 
 // audio
 var audio = new Audio('alarme.wav');

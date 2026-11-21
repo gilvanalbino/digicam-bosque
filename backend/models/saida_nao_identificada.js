@@ -37,6 +37,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'SaidaNaoIdentificada',
+      // avisa as telas abertas (SSE) quando uma saída sem entrada muda
+      hooks: require('../services/eventos.service').ganchos('saidas'),
       tableName: 'Saidas_nao_identificadas',
     }
   );

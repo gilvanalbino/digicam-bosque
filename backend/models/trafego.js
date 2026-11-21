@@ -60,6 +60,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'Trafego',
+      // avisa as telas abertas (SSE) quando um tráfego muda
+      hooks: require('../services/eventos.service').ganchos('trafegos'),
     }
   );
   return Trafego;

@@ -118,7 +118,7 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=America/Bahia
-      - CRON_SCHEDULE=*/5 * * * * *
+      - CRON_SCHEDULE=*/2 * * * * *   # a cada 2 s (era 5 s): a placa chega antes ao backend
       - CLIENT_IDS=2
       - DIGICAM_BACKEND_URL=http://backend:4000
     depends_on:

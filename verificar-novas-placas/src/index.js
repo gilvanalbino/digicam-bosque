@@ -107,8 +107,15 @@ const verificarNovasPlacas = async () => {
   }
 };
 
-// let isRunning = false;
+// um ciclo por vez: com a consulta a cada 2 s, um ciclo lento (câmera demorando, backend esperando a leitura do
+// software) não pode rodar junto com o seguinte, que reenviaria as mesmas placas ao mesmo tempo
+let emExecucao = false;
 const job = schedule.scheduleJob(cronSchedule, async function () {
+  if (emExecucao) {
+    console.log(new Date(), '==== ciclo anterior ainda em execução, pulando ====');
+    return;
+  }
+  emExecucao = true;
   console.log(new Date(), '==== scheduleJob starting ====');
   try {
     await verificarNovasPlacas();
@@ -116,6 +123,7 @@ const job = schedule.scheduleJob(cronSchedule, async function () {
     console.log(error);
     console.error(error);
   } finally {
+    emExecucao = false;
     console.log(new Date(), '**** scheduleJob finished! *** \n');
   }
 });

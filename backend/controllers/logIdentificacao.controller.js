@@ -13,10 +13,16 @@ const blackListService = require('../services/blackList.service');
 const databaseService = require('../services/sequelizeDatabaseService');
 const saidaNaoIdentificadaService = require('../services/saidaNaoIdentificada.service');
 const logidentificacao = require('../models/logidentificacao');
-const { Camera } = require('../models');
+const { Camera, Trafego } = require('../models');
 const identificacaoService = require('../services/identificacao/identificacao.service');
 
 const TAMANHO_MAXIMO_PLACA = 7;
+
+// leituras em processamento neste processo: o verificar-novas-placas reenvia as leituras recentes a cada ciclo, e
+// a mesma leitura pode chegar de novo antes de a primeira ser gravada (por exemplo, enquanto espera o software);
+// sem esta marca, as duas passariam pela checagem de repetidas e criariam duas entradas
+const EM_PROCESSAMENTO_MS = 60 * 1000;
+const leiturasEmProcessamento = new Set();
 
 const gerarIdentificadorUnico = (date, placa) => {
   return `${date.getTime()}-${placa}`;
@@ -138,7 +144,12 @@ class LogIdentificacaoController {
       return { mensagem: 'Leitura ignorada: sentido contrário ao da câmera' };
     }
 
-    // verifica se placa já foi inserida
+    // verifica se placa já foi inserida (ou está sendo inserida agora)
+    if (leiturasEmProcessamento.has(placaId)) {
+      return { mensagem: 'Placa já inserida anteriormente' };
+    }
+    leiturasEmProcessamento.add(placaId);
+    setTimeout(() => leiturasEmProcessamento.delete(placaId), EM_PROCESSAMENTO_MS);
     const placaEmLogIdentificacao = await databaseService.obterLogIdentificacaoPlaca(placaId);
     let placaEmTrafego;
     if (camera.sentido === 'E') {
@@ -147,7 +158,9 @@ class LogIdentificacaoController {
       placaEmTrafego = await databaseService.obterTrafegoSaidaPlaca(placaId);
     }
 
-    if (placaEmLogIdentificacao || placaEmTrafego) {
+    // a leitura já passou pela conciliação (por exemplo, juntou-se a uma passagem registrada pelo software)
+    const jaConciliada = await identificacaoService.identificacaoDaLeitura(placaId);
+    if (placaEmLogIdentificacao || placaEmTrafego || jaConciliada) {
       console.log(`Placa ${placaId} já inserida anteriormente`);
       return { mensagem: 'Placa já inserida anteriormente' };
     }
@@ -159,11 +172,17 @@ class LogIdentificacaoController {
     // Depois aplica a green list (1 caractere de diferença de uma placa da lista é erro de leitura); placa lida que
     // está na red list nunca é trocada. O identificador_placa mantém a placa lida pela câmera, que é a usada para
     // descartar leituras repetidas e localizar as fotos no FTP.
-    const { placa: placaFinal } = await identificacaoService.registrarLeituraCamera(loggedUserId, camera, {
+    const { placa: placaFinal, jaRegistrada } = await identificacaoService.registrarLeituraCamera(loggedUserId, camera, {
       placa: newLogIdentificacao.placa,
       data: new Date(newLogIdentificacao.data),
       identificador_placa: placaId,
     });
+    if (jaRegistrada) {
+      // o software já registrou esta passagem (a leitura da câmera chegou depois): a leitura entrou no mesmo
+      // registro de identificação e não gera outra entrada ou saída
+      console.log(`Placa ${newLogIdentificacao.placa}: passagem já registrada pelo software (${placaFinal})`);
+      return { mensagem: 'Passagem já registrada pelo software' };
+    }
     if (placaFinal && placaFinal !== newLogIdentificacao.placa) {
       console.log(`Placa ${newLogIdentificacao.placa} corrigida para ${placaFinal}`);
       newLogIdentificacao.placa = placaFinal;
@@ -223,46 +242,15 @@ class LogIdentificacaoController {
     );
     console.log('==========================================================');
     if (camera.sentido === 'E') {
-      downloadPromise.then(async (retDownload) => {
-        if (retDownload.status !== 'OK') {
-          console.log('Entrada automática não realizada:', retDownload.message);
-          return;
-        }
-        console.log('ENTRADA AUTOMÁTICA!!!!!');
-        // a placa pode ter sido corrigida pelo software enquanto as fotos eram baixadas (seção 7.4)
-        const placaAgora = await identificacaoService.placaAtual(placaId);
-        if (placaAgora && placaAgora !== newLogIdentificacao.placa) {
-          console.log(`Entrada de ${newLogIdentificacao.placa} registrada como ${placaAgora} (software)`);
-          newLogIdentificacao.placa = placaAgora;
-          const verde = await whiteListService.findByPlaca(loggedUserId, client.id, placaAgora);
-          const vermelha = await blackListService.findByPlaca(loggedUserId, client.id, placaAgora);
-          newLogIdentificacao.whiteList_id = verde ? verde.id : null;
-          newLogIdentificacao.blackList_id = vermelha ? vermelha.id : null;
-        }
-        // faz a entrada automática do veículo
-        const newTrafego = {
-          nome: '',
-          placa: newLogIdentificacao.placa,
-          dataEntrada: newLogIdentificacao.data,
-          dataSaida: null,
-          destino: 'cruzar',
-          morador_destino_id: null,
-          observacao: '',
-          client_id: camera.client_id,
-          imagem: null,
-          portaria_entrada_id: camera.portaria_id,
-          portaria_saida_id: null,
-          logIdentificacaoId: ret.id,
-          in_whitelist: newLogIdentificacao.whiteList_id > 0,
-          whitelist_id: newLogIdentificacao.whiteList_id,
-          in_blacklist: newLogIdentificacao.blackList_id > 0,
-          blacklist_id: newLogIdentificacao.blackList_id,
-        };
-        const trafego = await trafegoController.insertTrafego(loggedUserId, newTrafego);
-        await identificacaoService.vincularTrafego(placaId, trafego, 'entrada');
-      }).catch((e)=>{
-	 console.log("Erro obtendo foto", e);
-      });
+      // entrada automática na hora da leitura, sem esperar as fotos: o cartão aparece na tela segundos antes e as
+      // fotos entram no mesmo registro quando chegarem (antes a entrada só era criada depois das fotos)
+      console.log('ENTRADA AUTOMÁTICA!!!!!');
+      const trafego = await this.criarEntradaAutomatica(loggedUserId, camera, newLogIdentificacao, placaId);
+      downloadPromise
+        .then(() => this.anexarFotosEntrada(loggedUserId, trafego.id, ret.id))
+        .catch((e) => {
+          console.log('Erro obtendo foto', e);
+        });
     } else {
       // sem tratamento, a rejeição desta promise derruba o processo
       downloadPromise.catch((e) => {
@@ -273,6 +261,53 @@ class LogIdentificacaoController {
     // retorna o registro inserido
     return ret;
   }
+  /** Entrada automática criada na leitura da placa, ainda sem fotos (anexarFotosEntrada completa depois). */
+  async criarEntradaAutomatica(loggedUserId, camera, leitura, placaId) {
+    const trafego = await trafegoService.insert(loggedUserId, {
+      nome: '',
+      placa: leitura.placa,
+      dataEntrada: leitura.data,
+      dataSaida: null,
+      destino: 'cruzar',
+      morador_destino_id: null,
+      observacao: '',
+      client_id: camera.client_id,
+      portaria_entrada_id: camera.portaria_id,
+      portaria_saida_id: null,
+      identificador_placa: placaId,
+      in_whitelist: leitura.whiteList_id > 0,
+      whitelist_id: leitura.whiteList_id,
+      in_blacklist: leitura.blackList_id > 0,
+      blacklist_id: leitura.blackList_id,
+    });
+    await identificacaoService.vincularTrafego(placaId, trafego, 'entrada');
+    return trafego;
+  }
+
+  /** Grava as fotos baixadas da câmera na entrada já criada e remove a leitura, que não é mais necessária. */
+  async anexarFotosEntrada(loggedUserId, trafegoId, logId) {
+    const logIdentificacao = await logIdentificacaoService.get(logId);
+    const trafego = await Trafego.findByPk(trafegoId);
+    if (logIdentificacao && logIdentificacao.imagem_carro && trafego) {
+      const now = new Date();
+      const folder = `/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
+      const filename = `${trafego.placa}-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+      await fileService.saveFile(logIdentificacao.imagem_carro, folder, filename, true);
+      trafego.imagem = `${folder}/${filename}.jpg`;
+      trafego.imagem_thumb = `${folder}/${filename}_thumb.jpg`;
+      if (logIdentificacao.imagem_placa) {
+        await fileService.saveFile(logIdentificacao.imagem_placa, folder, filename + '-placa', false);
+        trafego.imagem_placa = `${folder}/${filename}-placa.jpg`;
+      }
+      await trafego.save();
+    } else {
+      console.log(`Entrada ${trafego && trafego.placa} sem foto da câmera`);
+    }
+    if (logIdentificacao) {
+      await logIdentificacaoService.remove(loggedUserId, logId);
+    }
+  }
+
   /**
    * Insert a logIdentificacao
    */
@@ -298,50 +333,31 @@ class LogIdentificacaoController {
     // os arquivos no FTP têm no nome a placa lida pela câmera
     const placa = placaLidaPelaCamera(logIdentificacao);
 
-    // obter imagem da placa da camera
-    // a foto da placa é opcional: se não for localizada, segue sem ela
-    console.log('\n==== obtendo imagem placa ======');
+    // fotos da placa e do carro. A foto da placa é opcional: se não for localizada, segue sem ela.
+    // No FTP, a listagem e as leituras são feitas numa conexão só (~1,5 s a menos por leitura).
     let imagemPlaca = null;
-    try {
-      if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
-        imagemPlaca = await hikvisionService.obterFotoPlaca(camera.url, logIdentificacao.picname);
-      } else if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
-        // obter imagem da placa no ftp
-        const files = await ftpService.listarArquivos(folder, `*${placa}_PLATE.*`);
-        console.log('Qtde arquivos para a placa: ', files.length);
-
-        const arquivoFoto = selecionarArquivoFoto(files, date);
-        console.log('Nome arquivo foto: ', arquivoFoto && arquivoFoto.name);
-        if (arquivoFoto) {
-          imagemPlaca = await ftpService.lerArquivo(folder, arquivoFoto.name);
-        }
-      }
-    } catch (e) {
-      console.log('Erro obtendo imagem da placa', e);
-    }
-
-    console.log('\n==== obtendo imagem carro ======');
-    // obtendo a imagem do carro do FTP
-    // localizando primeiro pela placa identificada
-    // caso ache mais de uma, filtra pela data
     let imagemCarro = null;
     try {
-      let padraoBusca = '';
-      if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
-        padraoBusca = `*${placa}.*`;
-      } else if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
-        padraoBusca = `*${placa}_BACKGROUND.*`;
-      }
-      const files = await ftpService.listarArquivos(folder, padraoBusca);
-      console.log('Qtde arquivos: ', files.length);
-
-      const arquivoFoto = selecionarArquivoFoto(files, date);
-      console.log('Nome arquivo foto: ', arquivoFoto && arquivoFoto.name);
-      if (arquivoFoto) {
-        imagemCarro = await ftpService.lerArquivo(folder, arquivoFoto.name);
+      if (camera.modelo === 'hikvision-iDS-2CD7A26G0/P-IZHS') {
+        const [fotoPlaca, fotoCarro] = await ftpService.lerFotos(folder, `*${placa}_*`, [
+          (files) => selecionarArquivoFoto(files.filter((f) => f.name.includes(`${placa}_PLATE.`)), date),
+          (files) => selecionarArquivoFoto(files.filter((f) => f.name.includes(`${placa}_BACKGROUND.`)), date),
+        ]);
+        console.log('Fotos no FTP:', fotoPlaca.arquivo && fotoPlaca.arquivo.name, fotoCarro.arquivo && fotoCarro.arquivo.name);
+        imagemPlaca = fotoPlaca.conteudo;
+        imagemCarro = fotoCarro.conteudo;
+      } else if (camera.modelo === 'hikvision-DS-2CD7A26G0/P-IZS') {
+        try {
+          imagemPlaca = await hikvisionService.obterFotoPlaca(camera.url, logIdentificacao.picname);
+        } catch (e) {
+          console.log('Erro obtendo imagem da placa', e.message);
+        }
+        const [fotoCarro] = await ftpService.lerFotos(folder, `*${placa}.*`, [(files) => selecionarArquivoFoto(files, date)]);
+        console.log('Foto no FTP:', fotoCarro.arquivo && fotoCarro.arquivo.name);
+        imagemCarro = fotoCarro.conteudo;
       }
     } catch (e) {
-      console.log('Erro obtendo imagem do carro', e);
+      console.log('Erro obtendo fotos', e);
     }
 
     // arquivo vazio no FTP (câmera gravou a foto pela metade) é tratado como foto não localizada
@@ -499,6 +515,9 @@ class LogIdentificacaoController {
     }
 
     console.log('Não encontrou nenhuma entrada', logIdentificacao.placa);
+    // vira saída sem entrada identificada na hora (painel de saídas), em vez de esperar o verificar-novas-placas
+    // remover a leitura pendente 3 min depois; removeLogIdentificacao grava as fotos, cria a saída e liga à identificação
+    await this.removeLogIdentificacao(loggedUserId, id);
     return { status: 'OK', trafego: null, message: 'Não encontrou nenhuma entrada' };
   }
 }

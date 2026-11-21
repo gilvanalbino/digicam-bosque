@@ -4,7 +4,10 @@
       :class="[classeAlerta, destacado ? 'ring-4 ring-indigo-500 border-indigo-500' : placaParecida ? 'ring-2 ring-amber-400 border-amber-400' : '']"
       @click="$emit('abrir', trafego)">
     <div class="flex-shrink-0">
-      <img class="rounded-lg" :class="compacto ? 'h-14 w-14' : 'h-20 w-20'" :src="`/images${trafego.imagem_thumb}`" alt="" draggable="false" />
+      <img v-if="trafego.imagem_thumb" class="rounded-lg" :class="compacto ? 'h-14 w-14' : 'h-20 w-20'" :src="`/images${trafego.imagem_thumb}`" alt="" draggable="false" />
+      <!-- a entrada é criada na leitura da placa e a foto chega segundos depois -->
+      <div v-else class="rounded-lg bg-gray-100 text-gray-400 text-[10px] flex items-center justify-center text-center animate-pulse"
+           :class="compacto ? 'h-14 w-14' : 'h-20 w-20'">foto<br />chegando</div>
     </div>
     <div class="flex-1 min-w-0">
       <a href="#" class="focus:outline-none" draggable="false" @click.prevent>

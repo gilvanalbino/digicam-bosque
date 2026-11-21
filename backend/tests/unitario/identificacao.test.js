@@ -107,6 +107,30 @@ test('passagem do software ainda sem cruzamento fica aberta por 2 minutos', () =
   assert.equal(ate, T0 + r.PASSAGEM_ABERTA_MS + r.TOLERANCIA_MS);
 });
 
+// ---------------- duplicata (rastro partido no software)
+
+test('segunda passagem do mesmo veículo na mesma câmera é duplicata', () => {
+  const passagem = { id: 1520, instante_software_inicio: s(2.6), placa_software: 'SRO2I81' };
+  const outras = [
+    { id: 1519, instante_camera: s(0), instante_software_inicio: s(0.2), placa_camera: 'SRO2181', placa_software: 'SRO2I81', placa_final: 'SRO2I81', situacao: 'concluida' },
+  ];
+  assert.equal(r.acharDuplicata(passagem, outras).id, 1519);
+});
+
+test('mesma placa muito depois, outra placa ou registro descartado não é duplicata', () => {
+  const passagem = { id: 9, instante_software_inicio: s(0), placa_software: 'ABC1D23' };
+  assert.equal(r.acharDuplicata(passagem, [{ id: 1, instante_camera: s(-120), placa_final: 'ABC1D23' }]), null);
+  assert.equal(r.acharDuplicata(passagem, [{ id: 2, instante_camera: s(5), placa_final: 'XYZ9Z99' }]), null);
+  assert.equal(r.acharDuplicata(passagem, [{ id: 3, instante_software_inicio: s(3), placa_software: 'ABC1D23', situacao: 'descartada' }]), null);
+});
+
+test('a câmera lendo o mesmo veículo de novo em 1 s com 1 caractere diferente é leitura repetida', () => {
+  const outras = [{ id: 1820, instante_camera: s(0), placa_camera: 'TTB1894', placa_software: 'TTB1B94', placa_final: 'TTB1B94' }];
+  assert.equal(r.acharLeituraRepetida({ data: s(1), placa: 'TTB1B94' }, outras).id, 1820);
+  assert.equal(r.acharLeituraRepetida({ data: s(15), placa: 'TTB1B94' }, outras), null);
+  assert.equal(r.acharLeituraRepetida({ data: s(1), placa: 'KKK9K99' }, outras), null);
+});
+
 // ---------------- placa e direção
 
 test('normalização e formato da placa', () => {
