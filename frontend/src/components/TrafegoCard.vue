@@ -18,6 +18,9 @@
           </span>
           <SinaisVeiculo :placa="trafego.placa" :quando="trafego.dataEntrada" class="ml-1" />
         </p>
+        <p v-if="trafego.identificacao_entrada && (trafego.identificacao_entrada.origem !== 'camera' || trafego.identificacao_entrada.divergente)">
+          <OrigemIdentificacao :identificacao="trafego.identificacao_entrada" :placa="trafego.placa" />
+        </p>
         <p v-if="mapPortaria[trafego.portaria_entrada_id]" class="text-xs text-green-700 font-bold truncate">
           Entrada: {{ mapPortaria[trafego.portaria_entrada_id].nome }}
         </p>
@@ -59,11 +62,12 @@
 import { computed } from 'vue';
 
 import SinaisVeiculo from './SinaisVeiculo.vue';
+import OrigemIdentificacao from './OrigemIdentificacao.vue';
 
 import { formatarData } from '../utils/dateUtil';
 
 export default {
-  components: { SinaisVeiculo },
+  components: { SinaisVeiculo, OrigemIdentificacao },
   props: {
     trafego: { type: Object, required: true },
     mapPortaria: { type: Object, default: () => ({}) },

@@ -23,6 +23,9 @@ module.exports = (sequelize, DataTypes) => {
       portaria_id: DataTypes.INTEGER,
       login: DataTypes.STRING,
       senha: DataTypes.STRING,
+      // identificação por software ligada nesta câmera e configuração do vídeo (linha virtual, área)
+      identificacao_software: DataTypes.BOOLEAN,
+      config_software: DataTypes.JSON,
     },
     {
       sequelize,

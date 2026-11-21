@@ -292,6 +292,7 @@ export default {
       { name: 'Cadastro de Usuários', visible: user.admin || user.admin_client, icon: UserIcon, action: ()=>{router.replace('/usuarios')} },
       { name: 'Cadastro de Moradores', visible: user.admin || user.admin_client, icon: HomeIcon, action: ()=>{router.replace('/moradores')} },
       { name: 'Rel. Listagem Trafego', visible: user.admin || user.admin_client, icon: DocumentReportIcon, action: ()=>{router.replace('/relatorios/listagemTrafego')} },
+      { name: 'Rel. Identificação por software', visible: user.admin || user.admin_client, icon: DocumentReportIcon, action: ()=>{router.replace('/relatorios/identificacaoSoftware')} },
       { name: 'Alterar Senha', visible: true, icon: KeyIcon, action: ()=>{router.replace('/alterar-senha')} },
       { name: 'Sair', visible: true, icon: LogoutIcon, action: logout },
     ]

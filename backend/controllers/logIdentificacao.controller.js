@@ -14,6 +14,7 @@ const databaseService = require('../services/sequelizeDatabaseService');
 const saidaNaoIdentificadaService = require('../services/saidaNaoIdentificada.service');
 const logidentificacao = require('../models/logidentificacao');
 const { Camera } = require('../models');
+const identificacaoService = require('../services/identificacao/identificacao.service');
 
 const TAMANHO_MAXIMO_PLACA = 7;
 
@@ -153,16 +154,19 @@ class LogIdentificacaoController {
 
     const client = await clientService.get(loggedUserId, camera.client_id);
 
-    // leitura com 1 caractere de diferença de uma placa da green list é erro da câmera: assume a placa da lista.
-    // Placa lida que está na red list nunca é trocada. O identificador_placa mantém a placa lida, que é a usada
-    // para descartar leituras repetidas e localizar as fotos no FTP.
-    const placaNaRedList = await blackListService.findByPlaca(loggedUserId, client.id, newLogIdentificacao.placa);
-    if (!placaNaRedList) {
-      const placaCorrigida = await whiteListService.obterPlacaCorrigida(client.id, newLogIdentificacao.placa);
-      if (placaCorrigida) {
-        console.log(`Placa ${newLogIdentificacao.placa} corrigida para ${placaCorrigida} (green list)`);
-        newLogIdentificacao.placa = placaCorrigida;
-      }
+    // placa final da passagem (docs/plano_identificacao_placas_software.md, seção 7): com a identificação por
+    // software ligada na câmera, junta a leitura da câmera com a do software e, na divergência, vale a do software.
+    // Depois aplica a green list (1 caractere de diferença de uma placa da lista é erro de leitura); placa lida que
+    // está na red list nunca é trocada. O identificador_placa mantém a placa lida pela câmera, que é a usada para
+    // descartar leituras repetidas e localizar as fotos no FTP.
+    const { placa: placaFinal } = await identificacaoService.registrarLeituraCamera(loggedUserId, camera, {
+      placa: newLogIdentificacao.placa,
+      data: new Date(newLogIdentificacao.data),
+      identificador_placa: placaId,
+    });
+    if (placaFinal && placaFinal !== newLogIdentificacao.placa) {
+      console.log(`Placa ${newLogIdentificacao.placa} corrigida para ${placaFinal}`);
+      newLogIdentificacao.placa = placaFinal;
     }
 
     newLogIdentificacao.imagem_pendente = true;
@@ -184,6 +188,7 @@ class LogIdentificacaoController {
         trafegoEntrada.placa_saida = newLogIdentificacao.placa;
         trafegoEntrada.identificador_placa_saida = newLogIdentificacao.identificador_placa;
         await trafegoService.updateTrafegoDB(loggedUserId, trafegoEntrada);
+        await identificacaoService.vincularTrafego(placaId, trafegoEntrada, 'saida');
       }
     }
 
@@ -224,6 +229,16 @@ class LogIdentificacaoController {
           return;
         }
         console.log('ENTRADA AUTOMÁTICA!!!!!');
+        // a placa pode ter sido corrigida pelo software enquanto as fotos eram baixadas (seção 7.4)
+        const placaAgora = await identificacaoService.placaAtual(placaId);
+        if (placaAgora && placaAgora !== newLogIdentificacao.placa) {
+          console.log(`Entrada de ${newLogIdentificacao.placa} registrada como ${placaAgora} (software)`);
+          newLogIdentificacao.placa = placaAgora;
+          const verde = await whiteListService.findByPlaca(loggedUserId, client.id, placaAgora);
+          const vermelha = await blackListService.findByPlaca(loggedUserId, client.id, placaAgora);
+          newLogIdentificacao.whiteList_id = verde ? verde.id : null;
+          newLogIdentificacao.blackList_id = vermelha ? vermelha.id : null;
+        }
         // faz a entrada automática do veículo
         const newTrafego = {
           nome: '',
@@ -240,10 +255,11 @@ class LogIdentificacaoController {
           logIdentificacaoId: ret.id,
           in_whitelist: newLogIdentificacao.whiteList_id > 0,
           whitelist_id: newLogIdentificacao.whiteList_id,
-          in_backlist: newLogIdentificacao.blackList_id > 0,
+          in_blacklist: newLogIdentificacao.blackList_id > 0,
           blacklist_id: newLogIdentificacao.blackList_id,
         };
-        await trafegoController.insertTrafego(loggedUserId, newTrafego);
+        const trafego = await trafegoController.insertTrafego(loggedUserId, newTrafego);
+        await identificacaoService.vincularTrafego(placaId, trafego, 'entrada');
       }).catch((e)=>{
 	 console.log("Erro obtendo foto", e);
       });
@@ -394,7 +410,8 @@ class LogIdentificacaoController {
           imagem_carro_thumb: imagens.imagem_thumb,
           imagem_placa: imagens.imagem_placa,
         };
-        await saidaNaoIdentificadaService.insert(saidaNaoIdentificada);
+        const criada = await saidaNaoIdentificadaService.insert(saidaNaoIdentificada);
+        await identificacaoService.vincularSaidaNaoIdentificada({ ...saidaNaoIdentificada, id: criada.id });
       }
     }
 
@@ -437,6 +454,7 @@ class LogIdentificacaoController {
         console.log('Erro removendo logIdentificacao de saída', e);
       });
       console.log('Encontrou entrada - registrou saida - ', logIdentificacao.placa);
+      await identificacaoService.vincularTrafego(logIdentificacao.identificador_placa, trafegoEntrada, 'saida');
       return { status: 'OK', trafego: ret };
     }
 
@@ -473,6 +491,9 @@ class LogIdentificacaoController {
           console.log('Erro removendo logIdentificacao de saída', e);
         });
         console.log(`Saída ${logIdentificacao.placa} associada à entrada de placa próxima ${entradaProxima.placa}`);
+        await identificacaoService.vincularTrafego(logIdentificacao.identificador_placa, trafego, 'saida');
+        const saidaAssociada = await saidaNaoIdentificadaService.getByIdentificadorPlaca(logIdentificacao.identificador_placa);
+        await identificacaoService.vincularSaidaNaoIdentificada(saidaAssociada);
         return { status: 'OK', trafego };
       }
     }

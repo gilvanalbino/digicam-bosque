@@ -28,6 +28,22 @@ class Rastro:
     foto_nota: float = -1.0
     recorte_placa: object = None
     recorte_nota: float = -1.0
+    # placa já avisada ao sistema como leitura estável (evento "leitura", antes de cruzar a linha)
+    placa_enviada: str = None
+
+
+@dataclass
+class Leitura:
+    """Placa que ficou estável enquanto o veículo ainda está passando (evento "leitura" para o sistema)."""
+    rastro: int
+    inicio: float
+    classe: str
+    placa: str
+    confianca: float
+    leituras_placa: int
+    foto: object
+    foto_caixa: tuple
+    recorte_placa: object
 
 
 @dataclass
@@ -45,6 +61,9 @@ class Passagem:
     foto: object
     foto_caixa: tuple
     recorte_placa: object
+    rastro: int = 0
+    # a placa deste veículo já foi avisada como leitura (então a passagem é avisada mesmo sem cruzar a linha)
+    placa_enviada: str = None
 
 
 class Passagens:
@@ -54,13 +73,14 @@ class Passagens:
     """
 
     def __init__(self, linha, tempo_perdido=3.0, max_tentativas_placa=15, confianca_placa=0.5,
-                 area_minima_placa=0.0, modo_ancora="base"):
+                 area_minima_placa=0.0, modo_ancora="base", leituras_estavel=3):
         self.linha = linha
         self.modo_ancora = modo_ancora
         self.tempo_perdido = tempo_perdido
         self.max_tentativas_placa = max_tentativas_placa
         self.confianca_placa = confianca_placa
         self.area_minima_placa = area_minima_placa
+        self.leituras_estavel = leituras_estavel
         self.rastros = {}
 
     def atualizar(self, instante, veiculos, quadro=None):
@@ -106,6 +126,22 @@ class Passagens:
             if recorte is not None and nota > rastro.recorte_nota:
                 rastro.recorte_placa, rastro.recorte_nota = recorte, nota
 
+    def leituras_estaveis(self):
+        """
+        Placas que ficaram estáveis (pelo menos `leituras_estavel` quadros votaram nela) e ainda não foram avisadas,
+        ou que mudaram depois do aviso. Cada uma vira um evento "leitura" para o sistema.
+        """
+        novas = []
+        for rastro in self.rastros.values():
+            placa, confianca, leituras, _ = rastro.votacao.resultado()
+            if not placa or leituras < self.leituras_estavel or placa == rastro.placa_enviada:
+                continue
+            rastro.placa_enviada = placa
+            classe = rastro.classes.most_common(1)[0][0] if rastro.classes else "veiculo"
+            novas.append(Leitura(rastro.id, rastro.primeiro, classe, placa, round(confianca, 3), leituras,
+                                 rastro.foto, rastro.foto_caixa, rastro.recorte_placa))
+        return novas
+
     def fechar_todos(self, instante):
         return self._fechar(instante, tudo=True)
 
@@ -118,7 +154,10 @@ class Passagens:
             del self.rastros[id_]
             direcao = rastro.lados.direcao()
             if direcao is None:
-                continue
+                if not rastro.placa_enviada:
+                    continue
+                # placa avisada, mas o veículo não cruzou a linha (manobra): o sistema descarta a leitura
+                direcao = "nenhuma"
             placa, confianca, leituras, validas = rastro.votacao.resultado()
             classe = rastro.classes.most_common(1)[0][0] if rastro.classes else "veiculo"
             prontas.append(Passagem(
@@ -135,5 +174,7 @@ class Passagens:
                 foto=rastro.foto,
                 foto_caixa=rastro.foto_caixa,
                 recorte_placa=rastro.recorte_placa,
+                rastro=rastro.id,
+                placa_enviada=rastro.placa_enviada,
             ))
         return prontas

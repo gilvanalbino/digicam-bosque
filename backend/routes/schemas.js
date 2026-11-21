@@ -89,6 +89,8 @@ const commonCameraAttributes = {
   portaria_id: Joi.number().required().description('Id da portaria que a camera está'),
   login: Joi.string().description('login para acesso à API da camera'),
   senha: Joi.string().description('senha para acesso à API da camera'),
+  identificacao_software: Joi.boolean().description('identificação por software ligada na câmera'),
+  config_software: Joi.object().unknown().allow(null).description('linha virtual e área (PUT /cameras/{id}/software)'),
 };
 
 const idCameraAttribute = { id: Joi.number().required().description('Id da camera') };

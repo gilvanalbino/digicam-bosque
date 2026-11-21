@@ -32,6 +32,7 @@ module.exports = (sequelize, DataTypes) => {
       imagem_carro: DataTypes.STRING,
       imagem_carro_thumb: DataTypes.STRING,
       imagem_placa: DataTypes.STRING,
+      identificacao_id: DataTypes.INTEGER,
     },
     {
       sequelize,

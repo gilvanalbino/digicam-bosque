@@ -1,13 +1,10 @@
 import os
 import time
-from datetime import datetime, timezone
 
 import numpy as np
 import pytest
 
 from visao.armazenamento import Armazenamento
-from visao.comparacao import (AMBOS_DIFERENTE, AMBOS_IGUAL, AMBOS_SEM_PLACA, SAIDA, SO_SOFTWARE_PLACA,
-                              SO_SOFTWARE_SEM_PLACA, Comparacao, casar)
 from visao.linha import Linha, SequenciaLados
 from visao.passagens import Passagem, Passagens
 from visao.placa import VotacaoPlaca, diferencas_placas, normalizar, placa_valida
@@ -129,98 +126,44 @@ def test_limite_de_tentativas_de_placa():
     assert not p.deve_ler_placa(1, caixa_em(900))
 
 
-# ---------------- comparação
+# ---------------- eventos para o sistema
 
-def test_casar_prefere_placa_igual_e_respeita_tolerancia():
-    software = [{"id": 1, "instante": 100.0, "placa": "ABC1D23"},
-                {"id": 2, "instante": 101.0, "placa": None},
-                {"id": 3, "instante": 500.0, "placa": "QWE1R23"}]
-    camera = [{"id": 10, "instante": 102.0, "placa": "ABC1D23"},
-              {"id": 11, "instante": 103.0, "placa": "ZZZ9Z99"},
-              {"id": 12, "instante": 900.0, "placa": "LMN4O56"}]
-    pares, sobras_s, sobras_c = casar(software, camera, tolerancia=20)
-    assert {(s["id"], c["id"]) for s, c in pares} == {(1, 10), (2, 11)}
-    assert [s["id"] for s in sobras_s] == [3]
-    assert [c["id"] for c in sobras_c] == [12]
-
-
-def test_casar_aceita_leitura_da_camera_na_chegada():
-    # o veículo chegou às 100, esperou a cancela e cruzou a linha às 160; a câmera leu às 101
-    software = [{"id": 1, "inicio": 100.0, "instante": 160.0, "placa": "ABC1D23"}]
-    camera = [{"id": 10, "instante": 101.0, "placa": "ABC1D23"}, {"id": 11, "instante": 200.0, "placa": "XYZ1D23"}]
-    pares, _, sobras_c = casar(software, camera, tolerancia=20)
-    assert [(s["id"], c["id"]) for s, c in pares] == [(1, 10)]
-    assert [c["id"] for c in sobras_c] == [11]
+def test_leitura_estavel_e_avisada_uma_vez_e_de_novo_se_a_placa_mudar():
+    p = Passagens(linha_horizontal(), leituras_estavel=3)
+    p.atualizar(1.0, [(1, caixa_em(900), "carro")])
+    for _ in range(2):
+        p.registrar_placa(1, [("ABC1D23", 0.9, None)])
+    assert p.leituras_estaveis() == []                 # só 2 leituras
+    p.registrar_placa(1, [("ABC1D23", 0.9, None)])
+    [leitura] = p.leituras_estaveis()
+    assert leitura.placa == "ABC1D23" and leitura.rastro == 1 and leitura.inicio == 1.0
+    assert p.leituras_estaveis() == []                 # já avisada
+    for _ in range(4):
+        p.registrar_placa(1, [("ABC1D28", 0.95, None)])
+    assert [l.placa for l in p.leituras_estaveis()] == ["ABC1D28"]
 
 
-class BancoFalso:
-    def __init__(self, linhas):
-        self.linhas = linhas
-
-    def __call__(self):
-        banco = self
-
-        class Cursor:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def execute(self, sql, parametros):
-                self.parametros = parametros
-
-            def fetchall(self):
-                # dataEntrada vem do MySQL sem fuso, em UTC
-                _, inicio, fim = self.parametros
-                return [l for l in banco.linhas
-                        if inicio <= l[2].replace(tzinfo=timezone.utc).timestamp() <= fim]
-
-        class Conexao:
-            def cursor(self):
-                return Cursor()
-
-            def close(self):
-                pass
-
-        return Conexao()
+def test_placa_avisada_sem_cruzar_a_linha_vira_passagem_nenhuma():
+    p = Passagens(linha_horizontal(), tempo_perdido=1.0, leituras_estavel=1)
+    p.atualizar(1.0, [(5, caixa_em(900), "carro")])
+    p.registrar_placa(5, [("ABC1D23", 0.9, None)])
+    assert len(p.leituras_estaveis()) == 1
+    [passagem] = p.atualizar(5.0, [])
+    assert passagem.direcao == "nenhuma" and passagem.placa_enviada == "ABC1D23" and passagem.rastro == 5
 
 
-def test_comparacao_classifica_e_grava(tmp_path):
-    arm = Armazenamento(str(tmp_path))
-    agora = 1_000_000.0
-    base = agora - 3600
-
-    def gravar(instante, direcao, placa):
-        return arm.gravar(5, Passagem(instante, instante, direcao, "carro", placa, 0.9, 1, 1, 1, 1.0, None, None, None))
-
-    igual = gravar(base, "entrada", "ABC1D23")
-    diferente = gravar(base + 100, "entrada", "ABC1D28")
-    sem_placa = gravar(base + 200, "entrada", None)
-    so_soft = gravar(base + 300, "entrada", "QWE1R23")
-    so_soft_sem = gravar(base + 400, "entrada", None)
-    saida = gravar(base + 500, "saida", None)
-
-    def utc(t):
-        return datetime.fromtimestamp(t, tz=timezone.utc).replace(tzinfo=None)
-
-    camera = [(1, "ABC1D23", utc(base + 2)), (2, "XYZ1D23", utc(base + 105)), (3, "KKK1K11", utc(base + 195)),
-              (4, "PPP2P22", utc(base + 1000))]
-
-    Comparacao(arm, BancoFalso(camera), camera_id=5, portaria_id=3, janela=7200, atraso=90).executar(agora)
-    resultado = {l["id"]: l["comparacao"] for l in arm.consultar("SELECT id, comparacao FROM passagens")}
-    assert resultado == {igual: AMBOS_IGUAL, diferente: AMBOS_DIFERENTE, sem_placa: AMBOS_SEM_PLACA,
-                         so_soft: SO_SOFTWARE_PLACA, so_soft_sem: SO_SOFTWARE_SEM_PLACA, saida: SAIDA}
-    assert [l["trafego_id"] for l in arm.consultar("SELECT trafego_id FROM so_camera")] == [4]
+def test_url_rtsp_e_assinatura():
+    from visao.servico import assinatura, url_rtsp
+    camera = {"id": 5, "url": "10.0.0.187", "login": "admin", "senha": "teste@123", "sentido": "E",
+              "config_software": {"canal": 101}}
+    assert url_rtsp(camera, 101) == "rtsp://admin:teste%40123@10.0.0.187:554/Streaming/Channels/101"
+    assert url_rtsp({**camera, "url": "10.0.0.187:80"}, 102).endswith("@10.0.0.187:554/Streaming/Channels/102")
+    assert assinatura(camera) != assinatura({**camera, "config_software": {"canal": 102}})
 
 
-def test_comparacao_ignora_periodo_antes_do_servico(tmp_path):
-    arm = Armazenamento(str(tmp_path))
-    agora = 1_000_000.0
-    camera = [(1, "ABC1D23", datetime.fromtimestamp(agora - 3000, tz=timezone.utc).replace(tzinfo=None))]
-    comparacao = Comparacao(arm, BancoFalso(camera), camera_id=5, portaria_id=3, desde=agora - 1000)
-    assert comparacao.executar(agora) == (0, 0, 0)
-    assert arm.consultar("SELECT * FROM so_camera") == []
+def test_iso():
+    from visao.sistema import iso
+    assert iso(1794852124.5) == "2026-11-16T18:02:04.500Z"
 
 
 # ---------------- armazenamento e retenção

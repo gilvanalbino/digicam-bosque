@@ -1,16 +1,13 @@
 """
-Protótipo da segunda camada de identificação: assiste ao vídeo de uma câmera, registra cada veículo que cruza a
-linha virtual (entrada ou saída) com foto e, quando consegue, a placa; compara com o que a câmera registrou.
+Análise de um vídeo gravado com a mesma lógica do serviço: registra cada veículo que cruza a linha virtual com foto
+e placa em SQLite, para calibrar a linha e os limiares de uma câmera fora do ar. O serviço ao vivo é visao.servico.
 
-Ao vivo:   python -m visao.main
-Arquivo:   python -m visao.main --arquivo video.mp4 --inicio 2026-11-16T17:57:00-03:00 --dados /tmp/saida
+    python -m visao.main --config config.yaml --arquivo video.mp4 --inicio 2026-11-16T17:57:00-03:00 --dados /tmp/saida
 """
 
 import argparse
 import logging
 import os
-import queue
-import threading
 import time
 from datetime import datetime
 
@@ -123,107 +120,24 @@ def processar(fonte, config, componentes, estado, parar):
         estado.passagens += 1
 
 
-def fila_ao_vivo(gerador, estado, parar, tamanho=10):
-    """
-    Decodifica em uma thread própria e entrega só os quadros recentes: se o processamento atrasar, os quadros
-    mais antigos são descartados, para o vídeo da câmera nunca acumular atraso.
-    """
-    fila = queue.Queue(maxsize=tamanho)
-
-    def ler():
-        for item in gerador:
-            if fila.full():
-                try:
-                    fila.get_nowait()
-                    estado.descartados += 1
-                except queue.Empty:
-                    pass
-            fila.put(item)
-
-    threading.Thread(target=ler, daemon=True, name="captura").start()
-    while not parar():
-        try:
-            yield fila.get(timeout=1)
-        except queue.Empty:
-            continue
-
-
-def conexao_mysql():
-    import pymysql
-
-    return pymysql.connect(
-        host=os.environ.get("DATABASE_HOST", "mysql"),
-        user=os.environ["DATABASE_USER"],
-        password=os.environ["DATABASE_PASS"],
-        database=os.environ["DATABASE_NAME"],
-        connect_timeout=10,
-        init_command="SET time_zone='+00:00'",
-    )
-
-
-def tarefas_periodicas(config, armazenamento, estado, parar):
-    from .comparacao import Comparacao
-
-    comparacao = Comparacao(armazenamento, conexao_mysql, config["camera_id"], config["portaria_id"],
-                            tolerancia=config.get("comparacao", {}).get("tolerancia_s", 20.0),
-                            desde=estado.inicio)
-    ultima_limpeza = 0.0
-    while not parar():
-        try:
-            comparacao.executar()
-            estado.ultima_comparacao = time.time()
-            estado.erro_comparacao = None
-        except Exception as erro:  # noqa: BLE001 - o banco do HML fora do ar não para o protótipo
-            estado.erro_comparacao = str(erro)
-            log.warning("comparação falhou: %s", erro)
-        if time.time() - ultima_limpeza > 600:
-            apagados = armazenamento.limpar()
-            ultima_limpeza = time.time()
-            if apagados:
-                log.info("retenção: %d fotos apagadas", apagados)
-        for _ in range(60):
-            if parar():
-                return
-            time.sleep(1)
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=os.environ.get("VISAO_CONFIG", "/app/config.yaml"))
     parser.add_argument("--dados", default=os.environ.get("VISAO_DADOS", "/data"))
-    parser.add_argument("--arquivo", help="processa um vídeo gravado em vez da câmera ao vivo")
+    parser.add_argument("--arquivo", required=True, help="vídeo gravado a analisar")
     parser.add_argument("--inicio", help="horário do início do vídeo gravado (ISO 8601)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
     config = carregar_config(args.config)
     componentes = montar(config, args.dados)
-    armazenamento = componentes[-1]
     estado = Estado()
-    parada = threading.Event()
-
-    if args.arquivo:
-        inicio = datetime.fromisoformat(args.inicio).timestamp() if args.inicio else 0.0
-        fonte = quadros(args.arquivo, config.get("qps", 5.0), arquivo=True, inicio_arquivo=inicio)
-        t0 = time.time()
-        processar(fonte, config, componentes, estado, parada.is_set)
-        log.info("arquivo processado: %d quadros, %d passagens em %.0f s", estado.quadros, estado.passagens,
-                 time.time() - t0)
-        return
-
-    url = os.environ["CAMERA_URL"]
-    fonte = fila_ao_vivo(quadros(url, config.get("qps", 5.0), parar=parada.is_set), estado, parada.is_set)
-    threading.Thread(target=processar, args=(fonte, config, componentes, estado, parada.is_set),
-                     daemon=True, name="processamento").start()
-    threading.Thread(target=tarefas_periodicas, args=(config, armazenamento, estado, parada.is_set),
-                     daemon=True, name="periodicas").start()
-
-    import uvicorn
-
-    from .web import criar_app
-
-    uvicorn.run(criar_app(armazenamento, estado, config), host="0.0.0.0", port=8090, log_level="warning")
-    parada.set()
+    inicio = datetime.fromisoformat(args.inicio).timestamp() if args.inicio else 0.0
+    fonte = quadros(args.arquivo, config.get("qps", 5.0), arquivo=True, inicio_arquivo=inicio)
+    t0 = time.time()
+    processar(fonte, config, componentes, estado, lambda: False)
+    log.info("arquivo processado: %d quadros, %d passagens em %.0f s", estado.quadros, estado.passagens,
+             time.time() - t0)
 
 
 if __name__ == "__main__":

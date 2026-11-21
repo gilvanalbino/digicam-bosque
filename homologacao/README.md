@@ -18,19 +18,22 @@ docker-compose -p digicam-hml --profile cameras stop     # para tudo, mantendo o
 - A migração do banco é manual (Fase 4 do plano).
 - Nunca usar `--remove-orphans` nem executar comandos em `/home/digicam`, onde fica produção.
 
-## Protótipo de visão (Entrada B2)
+## Identificação por software
 
-Serviço `visao_b2` (código em `visao-placas/`): assiste ao vídeo principal da Entrada B2, registra cada veículo que
-passa pela cancela com foto e, quando consegue, a placa, e compara com as entradas que a câmera registrou. Só lê o
-banco do HML. Página em `http://10.0.0.126:8081/visao/` (entrar no sistema na mesma aba antes).
+Serviço `identificacao_software` (código em `visao-placas/`, plano em `docs/plano_identificacao_placas_software.md`):
+assiste ao vídeo das câmeras com a identificação por software **ligada no cadastro da câmera** e envia ao backend
+a leitura e a passagem de cada veículo. O backend junta com a leitura da câmera em `Identificacoes` (uma linha por
+passagem, com as duas placas) e, na divergência, usa a do software. No HML as 4 câmeras ficam ligadas.
 
 ```bash
 cd ../visao-placas && docker build -t digicam-visao:hml-v<N> . && cd -    # nova versão; atualizar VISAO_TAG no .env
-docker-compose -p digicam-hml --profile visao up -d visao_b2              # liga
-docker-compose -p digicam-hml --profile visao stop visao_b2               # desliga, mantendo os dados
-docker-compose -p digicam-hml logs -f visao_b2
+docker-compose -p digicam-hml --profile cameras up -d identificacao_software
+docker-compose -p digicam-hml logs -f identificacao_software          # "status câmera N" a cada 5 min
 ```
 
-- `.env`: `VISAO_TAG` (tag da imagem) e `HML_DB_SENHA` (senha do usuário do banco do HML).
-- Dados em `/home/digicam/hml/visao` (SQLite e fotos), limitados a 2 GB e 15 dias (`visao-placas/config.yaml`).
-- Limites do container: 3 CPUs e 2 GB de memória. Usa uma conexão RTSP a mais na câmera 10.0.0.187.
+- Ligar/desligar e desenhar a linha virtual: cadastro da câmera (administrador), ou `PUT /digicam/cameras/{id}/software`.
+  O serviço relê a configuração a cada minuto.
+- Números por câmera: menu "Rel. Identificação por software" (`GET /digicam/identificacoes/client/{id}/resumo`).
+- `.env`: `VISAO_TAG` e o usuário de serviço `DIGICAM_SERVICO_EMAIL`/`DIGICAM_SERVICO_SENHA`.
+- Fila de eventos em `/home/digicam/hml/identificacao-software` (o serviço reenvia o que não chegou ao backend).
+- Limites: 5 CPUs e 4 GB. Com as 4 câmeras, ~3,5 CPUs. Uma conexão RTSP a mais por câmera (canal 101).

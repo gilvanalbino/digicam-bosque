@@ -1,4 +1,4 @@
-# Protótipo da segunda camada de identificação por vídeo (só HML). Tudo roda em CPU.
+# Identificação de entradas e saídas por software (docs/plano_identificacao_placas_software.md). Tudo em CPU.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
@@ -19,5 +19,4 @@ COPY src/ /app/src/
 COPY config.yaml /app/config.yaml
 ENV PYTHONPATH=/app/src
 
-EXPOSE 8090
-CMD ["python", "-m", "visao.main"]
+CMD ["python", "-m", "visao.servico"]

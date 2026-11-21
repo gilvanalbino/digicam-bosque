@@ -40,6 +40,8 @@ module.exports = (sequelize, DataTypes) => {
       imagem_saida: DataTypes.STRING,
       imagem_saida_thumb: DataTypes.STRING,
       imagem_saida_placa: DataTypes.STRING,
+      identificacao_entrada_id: DataTypes.INTEGER,
+      identificacao_saida_id: DataTypes.INTEGER,
 
       saida_automatica: DataTypes.BOOLEAN,
 

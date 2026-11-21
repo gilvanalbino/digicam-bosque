@@ -117,7 +117,9 @@ const listarPorStatus = async (loggedUserId, clientId, filtros) => {
   }
 
   const { rows, count } = await Trafego.findAndCountAll(params);
-  return { rows, total: count, page: page || 1, pageSize: params.limit || count };
+  // origem da identificação (câmera, software ou os dois) para o selo nas telas
+  const comIdentificacao = await require('./identificacao/identificacao.service').anexarIdentificacoes(rows);
+  return { rows: comIdentificacao, total: count, page: page || 1, pageSize: params.limit || count };
 };
 
 /**
@@ -370,6 +372,15 @@ const update = async (loggedUserId, updatedTrafego) => {
     loggedUser.admin ||
     loggedUser.client_id === trafego.client_id // cliente não pode cadastrar trafego em outro cliente
   ) {
+    if (updatedTrafego.placa && updatedTrafego.placa !== trafego.placa) {
+      // vale a placa do operador; as leituras da câmera e do software continuam na identificação
+      // (require aqui dentro: o serviço de identificação também usa este serviço)
+      await require('./identificacao/identificacao.service').registrarEdicaoOperador(
+        loggedUserId,
+        trafego,
+        updatedTrafego.placa
+      );
+    }
     trafego.placa = updatedTrafego.placa;
     trafego.nome = updatedTrafego.nome;
     trafego.destino = updatedTrafego.destino;

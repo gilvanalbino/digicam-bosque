@@ -20,6 +20,7 @@ const WhiteListRoutes = require('./routes/whiteList.route');
 const BlackListRoutes = require('./routes/blackList.route');
 const HealthRoutes = require('./routes/health.route');
 const VideoRoutes = require('./routes/video.route');
+const IdentificacaoRoutes = require('./routes/identificacao.route');
 
 const HapiSwagger = require('hapi-swagger');
 const Vision = require('@hapi/vision');
@@ -85,6 +86,7 @@ const init = async () => {
     ...mapRoutes(new BlackListRoutes(CONTEXT), BlackListRoutes.methods()),
     ...mapRoutes(new HealthRoutes(CONTEXT), HealthRoutes.methods()),
     ...mapRoutes(new VideoRoutes(CONTEXT), VideoRoutes.methods()),
+    ...mapRoutes(new IdentificacaoRoutes(CONTEXT), IdentificacaoRoutes.methods()),
   ]);
 
   await server.register({
@@ -127,6 +129,8 @@ const init = async () => {
   server.ext('onPreResponse', preResponse);
 
   await server.start();
+  // fecha as passagens vistas só pelo software (docs/plano_identificacao_placas_software.md, seção 7.3)
+  require('./services/identificacao/identificacao.service').iniciarVarredura();
   console.log(`Server running at: ${server.info.uri}`);
 
   // Graceful shutdown handling

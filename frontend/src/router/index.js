@@ -25,6 +25,7 @@ import Anomalias from '../pages/anomalias/Anomalias.vue';
 import CamerasAoVivo from '../pages/cameras/AoVivo.vue';
 
 import ListagemTrafegoPorPeriodo from '../pages/relatorios/ListagemTrafegoPorPeriodo.vue';
+import IdentificacaoSoftware from '../pages/relatorios/IdentificacaoSoftware.vue';
 
 import AlterarSenha from '../pages/usuarios/AlterarSenha.vue';
 import ListWhiteList from '../pages/whiteList/ListWhiteList.vue';
@@ -145,6 +146,10 @@ const router = createRouter({
     {
       path: '/relatorios/listagemTrafego',
       component: ListagemTrafegoPorPeriodo,
+    },
+    {
+      path: '/relatorios/identificacaoSoftware',
+      component: IdentificacaoSoftware,
     },
     {
       path: '/greenList',

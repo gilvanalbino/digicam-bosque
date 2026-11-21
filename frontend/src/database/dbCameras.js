@@ -101,3 +101,18 @@ export const getPhoto = (token, id) => {
     }
   });
 };
+
+// identificação por software (docs/plano_identificacao_placas_software.md, seção 4)
+export const obterFotoCamera = async (token, id) => {
+  const response = await api.get(`/cameras/${id}/foto`, { headers: { authorization: token }, timeout: 30000 });
+  return response.data.foto;
+};
+
+export const salvarSoftwareCamera = async (token, id, identificacao_software, config_software) => {
+  const response = await api.put(
+    `/cameras/${id}/software`,
+    { identificacao_software, config_software },
+    { headers: { authorization: token, 'Content-Type': 'application/json' } }
+  );
+  return response.data;
+};

@@ -35,6 +35,19 @@ const get = async (loggedUserId, id) => {
   }
 };
 
+// a configuração do vídeo (linha virtual e área) é validada e normalizada antes de gravar
+const prepararConfigSoftware = (camera) => {
+  if (camera.config_software) {
+    const { validarConfigSoftware } = require('./identificacao/regras');
+    const v = validarConfigSoftware(camera.config_software);
+    if (!v.ok) throw Error(v.erros.join('; '));
+    camera.config_software = v.config;
+  }
+  if (camera.identificacao_software && !camera.config_software) {
+    throw Error('Desenhe a linha virtual antes de ligar a identificação por software');
+  }
+};
+
 const insert = async (loggedUserId, newCamera) => {
   // somente admin ou admin cliente pode cadastrar cliente
   // admin cliente só pode cadastrar no mesmo cliente a que pertence
@@ -44,6 +57,7 @@ const insert = async (loggedUserId, newCamera) => {
   }
 
   if (loggedUser.admin || loggedUser.client_id === newCamera.client_id) {
+    prepararConfigSoftware(newCamera);
     return await Camera.create(newCamera);
   } else {
     throw Error('Operation not allowed');
@@ -65,6 +79,14 @@ const update = async (loggedUserId, updatedCamera) => {
     loggedUser.admin ||
     (loggedUser.client_id === camera.client_id && camera.client_id === updatedCamera.client_id) // cliente não pode cadastrar camera em outro cliente
   ) {
+    if ('identificacao_software' in updatedCamera || 'config_software' in updatedCamera) {
+      prepararConfigSoftware({ ...camera.get(), ...updatedCamera });
+      if (updatedCamera.config_software) {
+        updatedCamera.config_software = require('./identificacao/regras').validarConfigSoftware(
+          updatedCamera.config_software
+        ).config;
+      }
+    }
     return await Camera.update(updatedCamera, { where: { id: updatedCamera.id } });
   } else {
     throw Error('Operation not allowed');

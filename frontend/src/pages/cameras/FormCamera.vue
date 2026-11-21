@@ -69,6 +69,7 @@
               </button>
             </div>
           </div>
+          <ConfigSoftwareCamera v-if="camera.id && admin" :key="camera.id" :camera="camera" />
         </div>
       </div>
     </div>
@@ -81,6 +82,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { notify } from "notiwind"
 
 import Main from '../layout/Main.vue'
+import ConfigSoftwareCamera from '../../components/ConfigSoftwareCamera.vue'
 
 import useLogin from '../../composables/useLogin'
 import useClientes from '../../composables/useClientes'
@@ -89,7 +91,7 @@ import usePortarias from '../../composables/usePortarias'
 import { inserirCamera, obterCamera, atualizarCamera } from '../../database/dbCameras';
 
 export default {
-  components: { Main },
+  components: { Main, ConfigSoftwareCamera },
   setup() {
     const route = useRoute();
     const router = useRouter();
@@ -99,6 +101,8 @@ export default {
     const mapErro = ref({})
 
     const portarias = computed(()=>usePortarias.state.portarias.lista)
+    // a linha virtual e o liga/desliga da identificação por software são só para administrador
+    const admin = computed(() => !!(useLogin.state.auth.user && useLogin.state.auth.user.admin))
 
     onMounted(async () => {
       const id = route.params.id;
@@ -161,6 +165,7 @@ export default {
       titulo,
       camera,
       portarias,
+      admin,
       mapErro,
       salvar,
       cancelar
