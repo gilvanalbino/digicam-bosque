@@ -28,6 +28,38 @@ const FORMATO_PLACA = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
 const normalizarPlaca = (texto) => String(texto || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const placaValida = (placa) => FORMATO_PLACA.test(placa || '');
 
+// pares lidos de veículos diferentes: com fila na cancela, a leitura da câmera de um carro era juntada à passagem do
+// software do carro de trás (avaliação de produção de 21 a 23/11: 3 a 6% dos pares, como LLY2442 e KPE8283). Duas
+// placas no formato brasileiro com DIFERENCA_VEICULOS_DIFERENTES ou mais diferenças, sem contar as trocas típicas de
+// OCR, são de veículos diferentes e não ficam no mesmo registro. Com 3 diferenças ainda há leituras ruins do mesmo
+// veículo (XNZ14F9 e KNZ1400, KVQ2546 e KUC2548), por isso o corte em 4.
+const DIFERENCA_VEICULOS_DIFERENTES = 4;
+// caracteres que a câmera e o software confundem entre si (mais amplo que o da green list, que corrige placas)
+const GRUPOS_PARECIDOS = ['I1LJ', 'O0DQU', 'B8', 'S5', 'Z2', 'G6', 'A4', 'T7'];
+const GRUPO_PARECIDO = new Map(GRUPOS_PARECIDOS.flatMap((grupo, i) => [...grupo].map((c) => [c, i])));
+const parecidos = (a, b) => a === b || (GRUPO_PARECIDO.has(a) && GRUPO_PARECIDO.get(a) === GRUPO_PARECIDO.get(b));
+
+/** Distância de edição entre duas placas em que as trocas típicas de leitura (8/B, 0/O, 1/I...) não contam. */
+const diferencasDeLeitura = (placaA = '', placaB = '') => {
+  let anterior = Array.from({ length: placaB.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= placaA.length; i++) {
+    const atual = [i];
+    for (let j = 1; j <= placaB.length; j++) {
+      const troca = anterior[j - 1] + (parecidos(placaA[i - 1], placaB[j - 1]) ? 0 : 1);
+      atual[j] = Math.min(troca, anterior[j] + 1, atual[j - 1] + 1);
+    }
+    anterior = atual;
+  }
+  return anterior[placaB.length];
+};
+
+/**
+ * As duas leituras são de veículos diferentes? Só quando as duas placas estão no formato brasileiro: uma leitura fora
+ * do formato ("unknown", "BARRATO") não diz nada sobre o veículo, e o par continua valendo para o software corrigi-la.
+ */
+const veiculosDiferentes = (placaA, placaB) =>
+  placaValida(placaA) && placaValida(placaB) && diferencasDeLeitura(placaA, placaB) >= DIFERENCA_VEICULOS_DIFERENTES;
+
 const tempo = (valor) => (valor instanceof Date ? valor.getTime() : valor ? new Date(valor).getTime() : null);
 
 /** Intervalo [início, fim] em que uma leitura da câmera pode ser desta passagem do software. */
@@ -40,7 +72,8 @@ const janelaSoftware = (identificacao, agora = Date.now()) => {
 
 /**
  * Entre as passagens do software ainda sem leitura da câmera, escolhe a da leitura da câmera (instante e placa).
- * Preferência: placa mais parecida e, no empate, chegada mais próxima do instante da câmera.
+ * Preferência: placa mais parecida e, no empate, chegada mais próxima do instante da câmera. Passagens com placa de
+ * outro veículo (veiculosDiferentes) ficam de fora.
  */
 const escolherSoftwareParaCamera = (candidatas, instanteCamera, placaCamera, agora = Date.now()) => {
   const t = tempo(instanteCamera);
@@ -48,6 +81,7 @@ const escolherSoftwareParaCamera = (candidatas, instanteCamera, placaCamera, ago
   for (const c of candidatas) {
     const [de, ate] = janelaSoftware(c, agora);
     if (t < de || t > ate) continue;
+    if (veiculosDiferentes(c.placa_software, placaCamera)) continue;
     const dif = c.placa_software ? diferencasPlacas(c.placa_software, placaCamera) : 99;
     const dt = Math.abs(tempo(c.instante_software_inicio) - t);
     if (!melhor || dif < melhor.dif || (dif === melhor.dif && dt < melhor.dt)) melhor = { c, dif, dt };
@@ -66,6 +100,7 @@ const escolherCameraParaSoftware = (candidatas, passagem, agora = Date.now()) =>
   for (const c of candidatas) {
     const t = tempo(c.instante_camera);
     if (t < de || t > ate) continue;
+    if (veiculosDiferentes(passagem.placa_software, c.placa_camera)) continue;
     const dif = passagem.placa_software ? diferencasPlacas(passagem.placa_software, c.placa_camera) : 99;
     const dt = Math.abs(inicio - t);
     if (!melhor || dif < melhor.dif || (dif === melhor.dif && dt < melhor.dt)) melhor = { c, dif, dt };
@@ -205,6 +240,9 @@ module.exports = {
   ESPERA_SOFTWARE_MS,
   ESPERA_CAMERA_APOS_PASSAGEM_MS,
   LEITURAS_MINIMAS_SOFTWARE,
+  DIFERENCA_VEICULOS_DIFERENTES,
+  diferencasDeLeitura,
+  veiculosDiferentes,
   normalizarPlaca,
   placaValida,
   janelaSoftware,

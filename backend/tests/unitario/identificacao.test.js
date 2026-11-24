@@ -167,3 +167,36 @@ test('configuração inválida: pontos faltando, fora da imagem, linha curta, po
   assert.ok(!r.validarConfigSoftware({ linha: { p1: [0, 500], p2: [1000, 500], ponto_dentro: [500, 505] } }).ok);
   assert.ok(!r.validarConfigSoftware({ ...configB2, area: [[0, 0], [10, 10]] }).ok);
 });
+
+// ---------------- veículos diferentes (fila na cancela, avaliação de produção 21 a 23/11)
+
+test('placas de veículos diferentes não são casadas', () => {
+  assert.ok(r.veiculosDiferentes('LLY2442', 'KPE8283'));
+  assert.ok(r.veiculosDiferentes('SRW6D54', 'KPE2H84'));
+  // mesmo veículo com trocas típicas de leitura ou com 3 diferenças: continua sendo o mesmo
+  assert.ok(!r.veiculosDiferentes('U80II09', 'UBO0I09'));
+  assert.ok(!r.veiculosDiferentes('KVQ2546', 'KUC2548'));
+  assert.ok(!r.veiculosDiferentes('KRU2811', 'KRU2B11'));
+  // leitura fora do formato não diz nada sobre o veículo
+  assert.ok(!r.veiculosDiferentes('unknown', 'KRA4632'));
+  assert.ok(!r.veiculosDiferentes(null, 'KRA4632'));
+  assert.equal(r.diferencasDeLeitura('V80QE91', 'VBQ0E91'), 0);
+});
+
+test('câmera não casa com a passagem do software de outro veículo', () => {
+  const candidatas = [{ id: 1, instante_software_inicio: s(0), instante_software: null, placa_software: 'KPE8283' }];
+  assert.equal(r.escolherSoftwareParaCamera(candidatas, s(2), 'LLY2442', T0 + 3000), null);
+  // passagem ainda sem placa continua podendo casar
+  const semPlaca = [{ id: 2, instante_software_inicio: s(0), instante_software: null, placa_software: null }];
+  assert.equal(r.escolherSoftwareParaCamera(semPlaca, s(2), 'LLY2442', T0 + 3000).id, 2);
+  // entre duas passagens, a do mesmo veículo
+  const duas = [...candidatas, { id: 3, instante_software_inicio: s(4), instante_software: null, placa_software: 'LLY2442' }];
+  assert.equal(r.escolherSoftwareParaCamera(duas, s(2), 'LLY2442', T0 + 5000).id, 3);
+});
+
+test('software não casa com a leitura da câmera de outro veículo', () => {
+  const candidatas = [{ id: 7, instante_camera: s(2), placa_camera: 'TTF5E36' }];
+  const passagem = { instante_software_inicio: s(0), instante_software: s(10), placa_software: 'WDS2477' };
+  assert.equal(r.escolherCameraParaSoftware(candidatas, passagem), null);
+  assert.equal(r.escolherCameraParaSoftware(candidatas, { ...passagem, placa_software: 'TTF5E38' }).id, 7);
+});

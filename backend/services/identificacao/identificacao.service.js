@@ -240,6 +240,43 @@ const candidatasCamera = (camera) =>
     },
   });
 
+const CAMPOS_SOFTWARE = [
+  'rastro_software', 'instante_software_inicio', 'instante_software', 'direcao_software', 'placa_software',
+  'confianca_software', 'leituras_software', 'classe_veiculo', 'foto_software', 'foto_software_thumb',
+  'foto_software_placa',
+];
+
+/**
+ * Desfaz o par da leitura da câmera com a passagem do software, que eram de veículos diferentes: a linha existente
+ * fica só com a câmera (e com a entrada ou saída já registrada por ela) e a passagem do software vai para uma linha
+ * nova, que a varredura conclui como qualquer passagem vista só pelo software. Retorna a linha nova.
+ */
+const separarSoftwareDaCamera = async (camera, identificacao, placaSoftware) => {
+  const dadosSoftware = Object.fromEntries(CAMPOS_SOFTWARE.map((campo) => [campo, identificacao[campo]]));
+  identificacao.set({
+    ...Object.fromEntries(CAMPOS_SOFTWARE.map((campo) => [campo, null])),
+    origem: 'camera',
+    divergente: false,
+  });
+  // a placa final só pode ter vindo da câmera (ou da green list sobre ela): o software ainda não tinha placa
+  adicionarHistorico(identificacao, { tipo: 'separada_do_software', placa: placaSoftware, motivo: 'veículo diferente' });
+  await identificacao.save();
+  const nova = Identificacao.build({
+    ...dadosSoftware,
+    client_id: camera.client_id,
+    camera_id: camera.id,
+    sentido: camera.sentido,
+    origem: 'software',
+    situacao: 'aguardando',
+    software_ligado: !!camera.identificacao_software,
+    historico: [regras.eventoHistorico('separada_da_camera', { de: identificacao.id, placa_camera: identificacao.placa_camera })],
+  });
+  await nova.save();
+  log(`câmera ${camera.id}: ${identificacao.placa_camera} e ${placaSoftware} são veículos diferentes; ` +
+      `passagem do software separada da identificação ${identificacao.id} (nova ${nova.id})`);
+  return nova;
+};
+
 /**
  * Leitura ou passagem enviada pelo software. `evento`: { camera_id, rastro, inicio, instante?, direcao?, placa?,
  * confianca?, leituras?, classe?, foto?, foto_placa? }. Idempotente pelo `rastro`.
@@ -278,6 +315,13 @@ const registrarEventoSoftware = async (loggedUserId, evento, tipo) => {
       }
       identificacao.rastro_software = evento.rastro;
       identificacao.instante_software_inicio = new Date(evento.inicio);
+    } else if (
+      identificacao.origem === 'ambos' &&
+      !identificacao.placa_software &&
+      regras.veiculosDiferentes(identificacao.placa_camera, placaSoftware)
+    ) {
+      // o par foi feito antes de o software ler a placa, e a placa mostra que são dois veículos (fila na cancela)
+      identificacao = await separarSoftwareDaCamera(camera, identificacao, placaSoftware);
     }
     const placaAnterior = identificacao.placa_software;
     if (placaSoftware) {
