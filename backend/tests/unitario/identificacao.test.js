@@ -200,3 +200,45 @@ test('software não casa com a leitura da câmera de outro veículo', () => {
   assert.equal(r.escolherCameraParaSoftware(candidatas, passagem), null);
   assert.equal(r.escolherCameraParaSoftware(candidatas, { ...passagem, placa_software: 'TTF5E38' }).id, 7);
 });
+
+// ---------------- veículo parado na cancela (produção 24 e 25/11)
+
+test('veículo parado na cancela lido de novo minutos depois é a mesma passagem', () => {
+  // KRS5E7G na Entrada B1: a câmera leu de novo 89 s depois, com a entrada ainda aberta
+  const outras = [{ id: 13778, instante_camera: s(0), placa_camera: 'KRS5E7G', placa_software: 'KRS5E70', placa_final: 'KRS5E70', na_cancela: true }];
+  assert.equal(r.acharVeiculoParado({ instante: s(89), placas: ['KRS5E7G'] }, outras).id, 13778);
+  // KWT2873: a câmera leu "unknown" e a placa veio do software
+  const kwt = [{ id: 13518, instante_camera: s(0), placa_camera: 'KWT2873', placa_final: 'KWT2873', na_cancela: true }];
+  assert.equal(r.acharVeiculoParado({ instante: s(23), placas: ['unknown', 'KWT2873', 'KWT2873'] }, kwt).id, 13518);
+  // KWU8B10: rastro novo do software 2 min depois; vale o instante mais recente da identificação
+  const kwu = [{ id: 10375, instante_camera: s(0), instante_software_inicio: s(-3), instante_software: s(10), placa_final: 'KWU8B10', na_cancela: true }];
+  assert.equal(r.acharVeiculoParado({ instante: s(132), placas: ['KWU8B10'] }, kwu).id, 10375);
+});
+
+test('não é veículo parado: já saiu, outra placa, fora da janela, descartada ou só leitura inválida', () => {
+  const base = { id: 1, instante_camera: s(0), placa_camera: 'TTG7I88', placa_final: 'TTG7I88', na_cancela: true };
+  // TTG7I88 saiu e entrou de novo: a entrada anterior não está mais aberta
+  assert.equal(r.acharVeiculoParado({ instante: s(60), placas: ['TTG7I88'] }, [{ ...base, na_cancela: false }]), null);
+  assert.equal(r.acharVeiculoParado({ instante: s(60), placas: ['KPE8283'] }, [base]), null);
+  assert.equal(r.acharVeiculoParado({ instante: s(301), placas: ['TTG7I88'] }, [base]), null);
+  assert.equal(r.acharVeiculoParado({ instante: s(60), placas: ['TTG7I88'] }, [{ ...base, situacao: 'descartada' }]), null);
+  assert.equal(r.acharVeiculoParado({ instante: s(60), placas: ['unknown', null] }, [{ ...base, placa_final: 'unknown' }]), null);
+  assert.equal(r.ultimoInstante({ instante_camera: s(5), instante_software_inicio: s(1), instante_software: null }), T0 + 5000);
+});
+
+test('placa do software para achar a entrada quando a câmera venceu', () => {
+  // LLE9508 (green list): câmera LLF9508, software LLE9508 com 2 leituras, venceu a câmera
+  assert.equal(r.placaAlternativaDoSoftware({ placa_camera: 'LLF9508', placa_software: 'LLE9508', placa_final: 'LLF9508' }), 'LLE9508');
+  // o software já é a placa final, não leu, leu fora do formato ou leu outro veículo: não há alternativa
+  assert.equal(r.placaAlternativaDoSoftware({ placa_camera: 'LLF9508', placa_software: 'LLE9508', placa_final: 'LLE9508' }), null);
+  assert.equal(r.placaAlternativaDoSoftware({ placa_camera: 'LLF9508', placa_software: null, placa_final: 'LLF9508' }), null);
+  assert.equal(r.placaAlternativaDoSoftware({ placa_camera: 'LLF9508', placa_software: 'LLE950', placa_final: 'LLF9508' }), null);
+  assert.equal(r.placaAlternativaDoSoftware({ placa_camera: 'HDQ7137', placa_software: 'KQX7D18', placa_final: 'HDQ7137' }), null);
+  assert.equal(r.placaAlternativaDoSoftware(null), null);
+});
+
+test('veículo parado: não casa pela placa de outro veículo guardada no mesmo registro', () => {
+  const outras = [{ id: 2582, instante_camera: s(0), placa_camera: 'LLY2442', placa_software: 'QYI9E11', placa_final: 'QYI9E11', na_cancela: true }];
+  assert.equal(r.acharVeiculoParado({ instante: s(6), placas: ['LLY2442'] }, outras), null);
+  assert.equal(r.acharVeiculoParado({ instante: s(6), placas: ['QYI9E11'] }, outras).id, 2582);
+});

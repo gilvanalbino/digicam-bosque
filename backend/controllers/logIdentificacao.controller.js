@@ -178,10 +178,11 @@ class LogIdentificacaoController {
       identificador_placa: placaId,
     });
     if (jaRegistrada) {
-      // o software já registrou esta passagem (a leitura da câmera chegou depois): a leitura entrou no mesmo
-      // registro de identificação e não gera outra entrada ou saída
-      console.log(`Placa ${newLogIdentificacao.placa}: passagem já registrada pelo software (${placaFinal})`);
-      return { mensagem: 'Passagem já registrada pelo software' };
+      // a passagem já está registrada (pelo software, com a leitura da câmera chegando depois, ou por uma leitura
+      // anterior do mesmo veículo parado na cancela): a leitura entrou no mesmo registro de identificação e não gera
+      // outra entrada ou saída
+      console.log(`Placa ${newLogIdentificacao.placa}: passagem já registrada (${placaFinal})`);
+      return { mensagem: 'Passagem já registrada' };
     }
     if (placaFinal && placaFinal !== newLogIdentificacao.placa) {
       console.log(`Placa ${newLogIdentificacao.placa} corrigida para ${placaFinal}`);
@@ -195,11 +196,7 @@ class LogIdentificacaoController {
 
     // fazendo inicialmente uma baixa manual, para minimizar problemas de download de imagem
     if (camera.sentido === 'S') {
-      const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(
-        loggedUserId,
-        newLogIdentificacao.placa,
-        newLogIdentificacao.data
-      );
+      const trafegoEntrada = await this.entradaDaSaida(loggedUserId, newLogIdentificacao.placa, newLogIdentificacao.data, placaId);
       if (trafegoEntrada) {
         trafegoEntrada.user_reg_saida = loggedUserId;
         trafegoEntrada.saida_automatica = false;
@@ -438,12 +435,27 @@ class LogIdentificacaoController {
     return await logIdentificacaoService.getImagemCarro(id);
   }
 
+  /**
+   * Entrada sem saída para a leitura de saída: pela placa (exata) e, se não achar, pela placa que o software leu do
+   * mesmo veículo quando a da câmera venceu (identificacaoService.placaDoSoftwareDaLeitura).
+   */
+  async entradaDaSaida(loggedUserId, placa, data, identificadorPlaca, identificadorSaida) {
+    const entrada = await trafegoService.obterRegistroEntradaSemSaida(loggedUserId, placa, data, identificadorSaida);
+    if (entrada) return entrada;
+    const placaSoftware = await identificacaoService.placaDoSoftwareDaLeitura(identificadorPlaca);
+    if (!placaSoftware) return null;
+    const pelaPlacaDoSoftware = await trafegoService.obterRegistroEntradaSemSaida(loggedUserId, placaSoftware, data);
+    if (pelaPlacaDoSoftware) console.log(`Saída ${placa}: entrada encontrada pela placa do software ${placaSoftware}`);
+    return pelaPlacaDoSoftware;
+  }
+
   async tentarRegistrarSaidaAutomatica(loggedUserId, id) {
     const logIdentificacao = await logIdentificacaoService.get(id);
-    const trafegoEntrada = await trafegoService.obterRegistroEntradaSemSaida(
+    const trafegoEntrada = await this.entradaDaSaida(
       loggedUserId,
       logIdentificacao.placa,
       logIdentificacao.data,
+      logIdentificacao.identificador_placa,
       logIdentificacao.identificador_placa
     );
     if (trafegoEntrada) {

@@ -169,6 +169,56 @@ const acharLeituraRepetida = (leitura, outras) => {
   );
 };
 
+// o veículo parado na cancela é lido de novo pela câmera ou ganha um rastro novo no software depois de 20 s a
+// 2 min, fora das janelas acima. Casos reais na Entrada B1 em 24 e 25/11: KZE7H61 (55 s), KRS5E7G (89 s),
+// KWT2873 (23 s, com a câmera lendo "unknown") e KWU8B10 (2 min, só o software), que viraram entradas duplicadas.
+// Na janela maior só vale como repetição se o veículo ainda está ali: a entrada dele continua aberta (câmera de
+// entrada) ou ele não entrou de novo depois da saída (câmera de saída). Quem conta isso é o serviço, em `na_cancela`.
+const JANELA_VEICULO_PARADO_MS = 5 * 60 * 1000;
+
+/** Instante mais recente em que a identificação viu o veículo (câmera, início ou cruzamento do software). */
+const ultimoInstante = (o) => {
+  const t = [tempo(o.instante_camera), tempo(o.instante_software_inicio), tempo(o.instante_software)].filter((v) => v != null);
+  return t.length ? Math.max(...t) : null;
+};
+
+// leitura que serve para comparar: 6 ou 7 letras e números (fica de fora o "unknown" da câmera); a placa fora do
+// formato ainda serve, porque a câmera erra do mesmo jeito nas duas leituras (KRS5E7G)
+const placaComparavel = (placa) => /^[A-Z0-9]{6,7}$/.test(placa || '');
+
+/**
+ * Identificação da mesma câmera que já representa o veículo ainda parado na cancela: placa igual ou a 1 caractere
+ * de uma das `placas` (as comparáveis), visto a até JANELA_VEICULO_PARADO_MS e com `na_cancela` verdadeiro. Ou null.
+ */
+const acharVeiculoParado = ({ instante, placas }, outras) => {
+  const t = tempo(instante);
+  const leituras = (placas || []).filter(placaComparavel);
+  if (t == null || !leituras.length) return null;
+  return (
+    outras.find((o) => {
+      if (o.situacao === 'descartada' || !o.na_cancela) return false;
+      const to = ultimoInstante(o);
+      if (to == null || Math.abs(to - t) > JANELA_VEICULO_PARADO_MS) return false;
+      // só as leituras do veículo da placa final (num par antigo de câmera e software de veículos diferentes, a
+      // outra placa é de outro carro)
+      return [o.placa_final, o.placa_camera, o.placa_software]
+        .filter((p) => p && !veiculosDiferentes(p, o.placa_final))
+        .some((p) => leituras.some((l) => diferencasPlacas(p, l) <= 1));
+    }) || null
+  );
+};
+
+/**
+ * Placa do software para procurar a entrada quando a da câmera venceu (poucas leituras do software) e não acha:
+ * só quando as duas são do mesmo veículo. Caso real: LLE9508 (green list) saindo em 24/11, câmera LLF9508 com 2
+ * leituras do software LLE9508; a entrada ficou aberta e a saída virou saída sem entrada.
+ */
+const placaAlternativaDoSoftware = (identificacao) => {
+  const { placa_camera: camera, placa_software: software, placa_final: final } = identificacao || {};
+  if (!placaValida(software) || software === final || veiculosDiferentes(camera, software)) return null;
+  return software;
+};
+
 /** Direção que o software deve ver numa câmera de entrada (E) ou de saída (S). */
 const direcaoEsperada = (sentidoCamera) => (sentidoCamera === 'S' ? 'saida' : 'entrada');
 
@@ -254,6 +304,11 @@ module.exports = {
   JANELA_DUPLICATA_MS,
   acharLeituraRepetida,
   JANELA_LEITURA_REPETIDA_MS,
+  acharVeiculoParado,
+  placaComparavel,
+  ultimoInstante,
+  JANELA_VEICULO_PARADO_MS,
+  placaAlternativaDoSoftware,
   eventoHistorico,
   validarConfigSoftware,
 };

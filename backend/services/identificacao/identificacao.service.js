@@ -70,6 +70,59 @@ const leituraRepetidaDe = async (camera, leitura) => {
   return regras.acharLeituraRepetida(leitura, outras);
 };
 
+/**
+ * O veículo da identificação `o` ainda está na cancela desta câmera? Na entrada: a entrada dele continua aberta (ou
+ * ainda não foi criada). Na saída: ele não entrou de novo depois de ser visto na saída.
+ */
+const aindaNaCancela = async (camera, o) => {
+  if (camera.sentido === 'S') {
+    if (!o.placa_final) return false;
+    const visto = new Date(regras.ultimoInstante(o));
+    return !(await Trafego.findOne({
+      attributes: ['id'],
+      where: { client_id: camera.client_id, placa: o.placa_final, dataEntrada: { [Op.gt]: visto } },
+    }));
+  }
+  // passagem do software ainda esperando a câmera não conta: ela não registrou nada
+  if (!o.identificador_placa) return false;
+  let trafego = o.trafego_id ? await Trafego.findByPk(o.trafego_id, { attributes: ['id', 'dataSaida'] }) : null;
+  if (!trafego) {
+    trafego = await Trafego.findOne({ attributes: ['id', 'dataSaida'], where: { identificador_placa: o.identificador_placa } });
+  }
+  // sem tráfego ainda: a leitura está sendo processada (a entrada é criada logo depois da conciliação)
+  return !trafego || !trafego.dataSaida;
+};
+
+/**
+ * Identificação da mesma câmera que já representa este veículo, parado na cancela (regras.acharVeiculoParado):
+ * evita a segunda entrada ou saída quando ele é lido de novo minutos depois. `placas`: as leituras desta passagem.
+ */
+const veiculoParadoDe = async (camera, placas, instante, excluirId) => {
+  if (!(placas || []).some(regras.placaComparavel)) return null;
+  const t = new Date(instante).getTime();
+  const janela = [new Date(t - regras.JANELA_VEICULO_PARADO_MS), new Date(t + regras.JANELA_VEICULO_PARADO_MS)];
+  const outras = await Identificacao.findAll({
+    where: {
+      camera_id: camera.id,
+      ...(excluirId ? { id: { [Op.ne]: excluirId } } : {}),
+      situacao: { [Op.ne]: 'descartada' },
+      [Op.or]: [
+        { instante_camera: { [Op.between]: janela } },
+        { instante_software_inicio: { [Op.between]: janela } },
+        { instante_software: { [Op.between]: janela } },
+      ],
+    },
+    order: [['id', 'DESC']],
+  });
+  // primeiro pela placa e pelo horário; só nas que passarem consulta se o veículo ainda está ali
+  for (const o of outras) {
+    const dados = o.get();
+    if (!regras.acharVeiculoParado({ instante, placas }, [{ ...dados, na_cancela: true }])) continue;
+    if (await aindaNaCancela(camera, dados)) return o;
+  }
+  return null;
+};
+
 // passagens que o software já registrou sozinho (entrada ou saída criada) e que a câmera pode ler com atraso
 const registradasPeloSoftware = (camera) =>
   Identificacao.findAll({
@@ -149,6 +202,17 @@ const registrarLeituraCamera = async (loggedUserId, camera, leitura) => {
       leiturasSoftware: software ? software.leituras_software : undefined,
     });
     const final = await corrigirPelaGreenList(camera.client_id, decisao.placa, decisao.fonte, redList);
+    // o veículo parado na cancela foi lido de novo minutos depois (ou com a câmera lendo "unknown", e a placa veio
+    // do software): a leitura entra no registro que já existe, sem criar outra entrada ou saída
+    const parado = await veiculoParadoDe(
+      camera, [leitura.placa, software && software.placa_software, final.placa], leitura.data, software && software.id);
+    if (parado) {
+      adicionarHistorico(parado, { tipo: 'leitura_camera_repetida', placa: leitura.placa, motivo: 'veículo parado na cancela' });
+      await parado.save();
+      log(`câmera ${camera.id}: leitura ${leitura.placa} repete a identificação ${parado.id} (${parado.placa_final}), ` +
+          'veículo parado na cancela');
+      return { identificacao: parado, placa: parado.placa_final, jaRegistrada: true };
+    }
     const dados = {
       placa_camera: leitura.placa,
       instante_camera: leitura.data,
@@ -258,8 +322,14 @@ const separarSoftwareDaCamera = async (camera, identificacao, placaSoftware) => 
     origem: 'camera',
     divergente: false,
   });
-  // a placa final só pode ter vindo da câmera (ou da green list sobre ela): o software ainda não tinha placa
-  adicionarHistorico(identificacao, { tipo: 'separada_do_software', placa: placaSoftware, motivo: 'veículo diferente' });
+  // a placa final fica: veio da câmera ou de uma leitura anterior do software parecida com a da câmera, as duas do
+  // veículo desta linha
+  adicionarHistorico(identificacao, {
+    tipo: 'separada_do_software',
+    placa: placaSoftware,
+    placa_software_anterior: dadosSoftware.placa_software,
+    motivo: 'veículo diferente',
+  });
   await identificacao.save();
   const nova = Identificacao.build({
     ...dadosSoftware,
@@ -317,10 +387,12 @@ const registrarEventoSoftware = async (loggedUserId, evento, tipo) => {
       identificacao.instante_software_inicio = new Date(evento.inicio);
     } else if (
       identificacao.origem === 'ambos' &&
-      !identificacao.placa_software &&
-      regras.veiculosDiferentes(identificacao.placa_camera, placaSoftware)
+      regras.veiculosDiferentes(identificacao.placa_camera, placaSoftware) &&
+      !regras.veiculosDiferentes(identificacao.placa_camera, identificacao.placa_software)
     ) {
-      // o par foi feito antes de o software ler a placa, e a placa mostra que são dois veículos (fila na cancela)
+      // a placa do software mostra que são dois veículos (fila na cancela): o par foi feito antes de o software ler
+      // a placa, ou o rastro dele passou para o veículo de trás e a leitura mudou (casos reais na Saída B1 em 25/11:
+      // HDQ7137 lido pelos dois e depois KQX7D18 só pelo software, que ficou sem saída)
       identificacao = await separarSoftwareDaCamera(camera, identificacao, placaSoftware);
     }
     const placaAnterior = identificacao.placa_software;
@@ -401,7 +473,10 @@ const corrigirDepoisDoFato = async (loggedUserId, camera, identificacao, motivo 
     leiturasSoftware: identificacao.leituras_software,
   });
   const final = await corrigirPelaGreenList(camera.client_id, decisao.placa, decisao.fonte, redList);
-  if (!final.placa || final.placa === identificacao.placa_final) return;
+  if (!final.placa || final.placa === identificacao.placa_final) {
+    await associarPelaPlacaDoSoftware(loggedUserId, camera, identificacao);
+    return;
+  }
 
   const ident = identificacao.identificador_placa;
   const { trafego, saida } = await registrosDaIdentificacao(camera, identificacao);
@@ -442,6 +517,33 @@ const corrigirDepoisDoFato = async (loggedUserId, camera, identificacao, motivo 
   adicionarHistorico(identificacao, { tipo: 'correcao', de: anterior, para: final.placa, fonte: final.fonte });
   await identificacao.save();
   log(`câmera ${camera.id}: corrigida ${anterior} -> ${final.placa} (${motivo})`);
+};
+
+/**
+ * Saída que ficou sem entrada com a placa da câmera (que venceu): tenta a entrada pela placa do software, quando as
+ * duas são do mesmo veículo (regras.placaAlternativaDoSoftware). Para o software que chega depois de a saída ter
+ * virado saída sem entrada; antes disso quem tenta é o fluxo da câmera (placaDoSoftwareDaLeitura).
+ */
+const associarPelaPlacaDoSoftware = async (loggedUserId, camera, identificacao) => {
+  const placa = camera.sentido === 'S' ? regras.placaAlternativaDoSoftware(identificacao) : null;
+  if (!placa) return;
+  const { saida } = await registrosDaIdentificacao(camera, identificacao);
+  if (!saida || saida.status !== 'pendente') return;
+  if (await associarSaidaPelaPlaca(loggedUserId, camera, saida, placa)) {
+    adicionarHistorico(identificacao, { tipo: 'saida_pela_placa_do_software', placa });
+    await identificacao.save();
+    log(`câmera ${camera.id}: saída ${identificacao.placa_final} associada pela placa do software ${placa}`);
+  }
+};
+
+/** Placa do software para procurar a entrada desta leitura de saída, quando a da câmera não acha (ou null). */
+const placaDoSoftwareDaLeitura = async (identificadorPlaca) => {
+  if (!identificadorPlaca) return null;
+  const identificacao = await Identificacao.findOne({
+    where: { identificador_placa: identificadorPlaca },
+    attributes: ['placa_camera', 'placa_software', 'placa_final'],
+  });
+  return regras.placaAlternativaDoSoftware(identificacao);
 };
 
 /** Saída pendente: procura a entrada pela placa do software (exata e depois próxima) e associa. */
@@ -562,15 +664,16 @@ const varrer = async (agora = Date.now()) => {
     await serializar(camera.id, async () => {
       const identificacao = await Identificacao.findByPk(p.id);
       if (!identificacao || identificacao.situacao !== 'aguardando' || identificacao.origem !== 'software') return;
+      let original;
       try {
         if (!identificacao.instante_software || identificacao.direcao_software !== regras.direcaoEsperada(camera.sentido)) {
           identificacao.situacao = 'descartada';
         } else if (!identificacao.placa_software || !camera.identificacao_software) {
           // sem placa (motos: backlog) ou software desligado: só o registro
           identificacao.situacao = 'concluida';
-        } else if (await duplicataDe(identificacao)) {
-          // o mesmo veículo já tem passagem nesta câmera (rastro partido no software): não registra de novo
-          const original = await duplicataDe(identificacao);
+        } else if ((original = await duplicataDe(camera, identificacao))) {
+          // o mesmo veículo já tem passagem nesta câmera (rastro partido no software, ou rastro novo para o veículo
+          // parado na cancela): não registra de novo
           identificacao.situacao = 'descartada';
           adicionarHistorico(identificacao, { tipo: 'duplicada', de: original.id });
           log(`câmera ${camera.id}: passagem ${identificacao.placa_software} descartada, repete a identificação ${original.id}`);
@@ -604,8 +707,15 @@ const varrer = async (agora = Date.now()) => {
   );
 };
 
-/** Outra identificação da mesma câmera que já representa este veículo (regras.acharDuplicata). */
-const duplicataDe = async (identificacao) => {
+/**
+ * Outra identificação da mesma câmera que já representa este veículo: rastro partido (regras.acharDuplicata) ou o
+ * veículo parado na cancela (veiculoParadoDe).
+ */
+const duplicataDe = async (camera, identificacao) =>
+  (await rastroPartidoDe(identificacao)) ||
+  veiculoParadoDe(camera, [identificacao.placa_software], identificacao.instante_software_inicio, identificacao.id);
+
+const rastroPartidoDe = async (identificacao) => {
   const t = new Date(identificacao.instante_software_inicio).getTime();
   const janela = [new Date(t - regras.JANELA_DUPLICATA_MS), new Date(t + regras.JANELA_DUPLICATA_MS)];
   const outras = await Identificacao.findAll({
@@ -707,6 +817,7 @@ module.exports = {
   registrarLeituraCamera,
   identificacaoDaLeitura,
   placaAtual,
+  placaDoSoftwareDaLeitura,
   vincularTrafego,
   vincularSaidaNaoIdentificada,
   registrarEventoSoftware,
